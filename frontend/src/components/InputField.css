@@ -1,0 +1,408 @@
+/* InputField Component Styles */
+/* Marriott-inspired premium input with auto-suggestions */
+
+.input-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  background: var(--background-white);
+  border: 2px solid var(--border-light);
+  border-radius: var(--border-radius-large);
+  padding: 4px;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.input-wrapper:focus-within {
+  border-color: var(--marriott-gold);
+  box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.1);
+}
+
+/* Autosuggest styling */
+.autosuggest-container {
+  flex: 1;
+  position: relative;
+}
+
+.autosuggest-input {
+  width: 100%;
+  border: none;
+  outline: none;
+  padding: 16px 20px;
+  font-family: var(--font-primary);
+  font-size: 1rem;
+  line-height: 1.5;
+  background: transparent;
+  color: var(--text-primary);
+  resize: none;
+  min-height: 24px;
+  max-height: 120px;
+}
+
+.autosuggest-input::placeholder {
+  color: var(--text-secondary);
+}
+
+.autosuggest-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Suggestions container */
+.autosuggest-suggestions-container {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  margin-top: 8px;
+}
+
+.suggestions-container {
+  background: var(--background-white);
+  border: 1px solid var(--border-light);
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow-large);
+  max-height: 300px;
+  overflow-y: auto;
+  animation: suggestionsSlideIn var(--transition-medium);
+}
+
+.suggestions-loading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.autosuggest-suggestions-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.autosuggest-suggestion {
+  border-bottom: 1px solid var(--border-light);
+}
+
+.autosuggest-suggestion:last-child {
+  border-bottom: none;
+}
+
+/* Individual suggestion styling */
+.suggestion {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+}
+
+.suggestion:hover,
+.suggestion-highlighted,
+.autosuggest-suggestion-highlighted .suggestion {
+  background: rgba(212, 175, 55, 0.1);
+}
+
+.suggestion-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.suggestion-text {
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.suggestion-description {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.suggestion-type {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 12px;
+}
+
+.suggestion-type-query {
+  background: rgba(0, 123, 255, 0.1);
+  color: #007bff;
+}
+
+.suggestion-type-action {
+  background: rgba(40, 167, 69, 0.1);
+  color: var(--success-green);
+}
+
+.suggestion-type-entity {
+  background: rgba(212, 175, 55, 0.1);
+  color: var(--marriott-gold);
+}
+
+/* Send button */
+.send-button {
+  width: 48px;
+  height: 48px;
+  border: none;
+  border-radius: 50%;
+  background: var(--marriott-red);
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.send-button:hover:not(:disabled) {
+  background: var(--marriott-gold);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-medium);
+}
+
+.send-button:disabled {
+  background: var(--text-secondary);
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.send-button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+/* Input help section */
+.input-help {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 4px;
+}
+
+.help-text {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.suggestions-count {
+  color: var(--marriott-gold);
+  font-weight: 500;
+}
+
+/* Quick actions */
+.quick-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.quick-action {
+  padding: 6px 12px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--border-radius-large);
+  background: var(--surface-gray);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.quick-action:hover:not(:disabled) {
+  background: var(--marriott-gold);
+  color: white;
+  border-color: var(--marriott-gold);
+  transform: translateY(-1px);
+}
+
+.quick-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Animations */
+@keyframes suggestionsSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Custom scrollbar for suggestions */
+.suggestions-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.suggestions-container::-webkit-scrollbar-track {
+  background: var(--surface-gray);
+}
+
+.suggestions-container::-webkit-scrollbar-thumb {
+  background: var(--marriott-gold);
+  border-radius: 3px;
+}
+
+.suggestions-container::-webkit-scrollbar-thumb:hover {
+  background: var(--marriott-red);
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .input-wrapper {
+    padding: 3px;
+  }
+  
+  .autosuggest-input {
+    padding: 14px 16px;
+    font-size: 1rem;
+  }
+  
+  .send-button {
+    width: 44px;
+    height: 44px;
+  }
+  
+  .input-help {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  
+  .help-text {
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  
+  .quick-actions {
+    justify-content: center;
+  }
+  
+  .suggestion {
+    padding: 14px 16px;
+  }
+  
+  .suggestion-type {
+    width: 28px;
+    height: 28px;
+  }
+}
+
+@media (max-width: 480px) {
+  .autosuggest-input {
+    padding: 12px 14px;
+  }
+  
+  .send-button {
+    width: 40px;
+    height: 40px;
+  }
+  
+  .quick-actions {
+    gap: 6px;
+  }
+  
+  .quick-action {
+    padding: 4px 8px;
+    font-size: 0.7rem;
+  }
+  
+  .suggestion {
+    padding: 12px 14px;
+  }
+  
+  .suggestion-description {
+    font-size: 0.8rem;
+  }
+}
+
+/* High contrast mode */
+@media (prefers-contrast: high) {
+  .input-wrapper {
+    border-width: 3px;
+  }
+  
+  .suggestions-container {
+    border-width: 2px;
+  }
+  
+  .suggestion {
+    border-bottom-width: 2px;
+  }
+  
+  .quick-action {
+    border-width: 2px;
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .suggestions-container {
+    animation: none;
+  }
+  
+  .send-button:hover:not(:disabled) {
+    transform: none;
+  }
+  
+  .quick-action:hover:not(:disabled) {
+    transform: none;
+  }
+  
+  .input-wrapper {
+    transition: none;
+  }
+}
+
+/* Focus management for accessibility */
+.autosuggest-input:focus {
+  outline: 2px solid var(--marriott-gold);
+  outline-offset: -2px;
+}
+
+.send-button:focus {
+  outline: 2px solid var(--marriott-gold);
+  outline-offset: 2px;
+}
+
+.quick-action:focus {
+  outline: 2px solid var(--marriott-gold);
+  outline-offset: 2px;
+}
+
+/* Print styles */
+@media print {
+  .input-container {
+    display: none;
+  }
+}
