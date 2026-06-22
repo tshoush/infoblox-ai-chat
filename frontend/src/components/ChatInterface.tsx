@@ -1,266 +1,235 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { v4 as uuidv4 } from 'uuid';
-import MessageList from './MessageList';
-import InputField from './InputField';
-import Header from './Header';
-import StatusIndicator from './StatusIndicator';
-import './ChatInterface.css';
+import React, { useState, useEffect } from 'react';
+import { useChat } from '../ChatContext';
+import ProviderSettings from './ProviderSettings';
+import '../App.css';
 
-export interface ChatMessage {
-  id: string;
-  content: string;
-  sender: 'user' | 'assistant' | 'system';
-  timestamp: Date;
-  messageType: 'text' | 'api_call' | 'result' | 'error';
-  metadata?: {
-    proposedCalls?: any[];
-    confidence?: number;
-    sessionId?: string;
-    requestId?: string;
-  };
-}
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
-export interface SystemStatus {
-  status: 'healthy' | 'degraded' | 'unhealthy';
-  infobloxConnected: boolean;
-  llmConnected: boolean;
-  lastChecked: Date;
+// Monotonic, collision-free message ids (Date.now() alone collides within a ms).
+let _msgSeq = 0;
+const uid = () => `msg-${Date.now()}-${++_msgSeq}`;
+
+// fetch with a hard timeout so a hung backend can't lock the UI forever.
+async function fetchWithTimeout(url: string, opts: RequestInit = {}, ms = 30000) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  try {
+    return await fetch(url, { ...opts, signal: ctrl.signal });
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 const ChatInterface: React.FC = () => {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [sessionId] = useState(() => uuidv4());
-  const [systemStatus, setSystemStatus] = useState<SystemStatus>({
-    status: 'healthy',
-    infobloxConnected: true,
-    llmConnected: true,
-    lastChecked: new Date()
-  });
-  const [error, setError] = useState<string | null>(null);
-  
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const retryTimeoutRef = useRef<NodeJS.Timeout>();
-
-  // Auto-scroll to bottom when new messages arrive
-  const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, []);
+  const { state, dispatch } = useChat();
+  const [input, setInput] = useState('');
+  const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, scrollToBottom]);
+    // The session id is seeded synchronously in the reducer; only generate one
+    // here as a belt-and-suspenders fallback (never on the first render path).
+    if (!state.sessionId) {
+      dispatch({ type: 'SET_SESSION_ID', payload: `session-${Date.now()}-${Math.random().toString(36).slice(2)}` });
+    }
+  }, [state.sessionId, dispatch]);
 
-  // Check system status periodically
-  useEffect(() => {
-    const checkStatus = async () => {
-      try {
-        const response = await fetch('/health');
-        const healthData = await response.json();
-        
-        setSystemStatus({
-          status: healthData.status,
-          infobloxConnected: healthData.checks?.infoblox_connection === 'pass',
-          llmConnected: true, // Will be updated when LLM integration is implemented
-          lastChecked: new Date()
-        });
-        
-        // Clear any existing errors if system is healthy
-        if (healthData.status === 'healthy' && error) {
-          setError(null);
-        }
-      } catch (err) {
-        console.error('Health check failed:', err);
-        setSystemStatus(prev => ({
-          ...prev,
-          status: 'unhealthy',
-          lastChecked: new Date()
-        }));
-      }
+  const handleSendMessage = async () => {
+    if (input.trim() === '') return;
+
+    const newMessage = {
+      id: uid(),
+      content: input,
+      sender: 'user' as const,
+      timestamp: Date.now(),
+      message_type: 'text' as const,
     };
 
-    // Initial check
-    checkStatus();
-    
-    // Check every 30 seconds
-    const interval = setInterval(checkStatus, 30000);
-    
-    return () => clearInterval(interval);
-  }, [error]);
-
-  // Add welcome message on component mount
-  useEffect(() => {
-    const welcomeMessage: ChatMessage = {
-      id: uuidv4(),
-      content: 'Welcome to the Infoblox AI Chat Interface! I can help you manage your network infrastructure using natural language. Try asking me to "show all A records" or "list networks".',
-      sender: 'assistant',
-      timestamp: new Date(),
-      messageType: 'text',
-      metadata: {
-        sessionId
-      }
-    };
-    
-    setMessages([welcomeMessage]);
-  }, [sessionId]);
-
-  const handleSendMessage = useCallback(async (message: string) => {
-    if (!message.trim() || isLoading) return;
-
-    const userMessage: ChatMessage = {
-      id: uuidv4(),
-      content: message.trim(),
-      sender: 'user',
-      timestamp: new Date(),
-      messageType: 'text',
-      metadata: { sessionId }
-    };
-
-    setMessages(prev => [...prev, userMessage]);
-    setIsLoading(true);
-    setError(null);
+    dispatch({ type: 'ADD_MESSAGE', payload: newMessage });
+    dispatch({ type: 'SET_LOADING', payload: true });
+    setInput('');
 
     try {
-      const response = await fetch('/api/chat', {
+      const res = await fetchWithTimeout(`${API_BASE_URL}/api/chat`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Session-ID': sessionId
-        },
-        body: JSON.stringify({ message: message.trim() })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: newMessage.content, session_id: state.sessionId }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error?.message || `HTTP ${response.status}`);
+      if (!res.ok) {
+        throw new Error(`Server responded with ${res.status}`);
       }
 
-      const data = await response.json();
-      
-      const assistantMessage: ChatMessage = {
-        id: uuidv4(),
-        content: data.response,
-        sender: 'assistant',
-        timestamp: new Date(data.timestamp),
-        messageType: data.proposed_calls?.length > 0 ? 'api_call' : 'text',
-        metadata: {
-          proposedCalls: data.proposed_calls,
-          confidence: data.confidence,
-          sessionId: data.session_id,
-          requestId: data.request_id
-        }
-      };
+      const data = await res.json();
+      if (data.session_id && data.session_id !== state.sessionId) {
+        dispatch({ type: 'SET_SESSION_ID', payload: data.session_id });
+      }
 
-      setMessages(prev => [...prev, assistantMessage]);
+      const response = data.response || {};
+      const isProposal = response.response_type === 'api_call_proposal';
+      const isPlan = response.response_type === 'api_call_plan';
 
+      let content: string;
+      let metadata: any;
+      if (isPlan) {
+        const ops = response.operations || [];
+        const summary = ops
+          .map((o: any, i: number) => `${i + 1}. ${o.method} ${o.operation}`)
+          .join('\n');
+        content = `Proposed plan — ${ops.length} WAPI calls (in order):\n${summary}\n\n${JSON.stringify(ops, null, 2)}`;
+        metadata = { operations: ops };
+      } else if (isProposal) {
+        content = `Proposed WAPI call:\n${JSON.stringify(response.proposal, null, 2)}`;
+        metadata = response.proposal;
+      } else {
+        content = response.content ?? 'No response.';
+        metadata = undefined;
+      }
+
+      dispatch({
+        type: 'ADD_MESSAGE',
+        payload: {
+          id: uid(),
+          content,
+          sender: 'assistant' as const,
+          timestamp: Date.now(),
+          message_type: isProposal || isPlan ? ('api_call' as const) : ('text' as const),
+          metadata,
+        },
+      });
     } catch (err) {
-      console.error('Chat request failed:', err);
-      
-      const errorMessage: ChatMessage = {
-        id: uuidv4(),
-        content: `I'm sorry, I encountered an error: ${err instanceof Error ? err.message : 'Unknown error'}. Please try again.`,
-        sender: 'system',
-        timestamp: new Date(),
-        messageType: 'error',
-        metadata: { sessionId }
-      };
-
-      setMessages(prev => [...prev, errorMessage]);
-      setError(err instanceof Error ? err.message : 'Unknown error occurred');
-      
-      // Implement retry logic
-      if (retryTimeoutRef.current) {
-        clearTimeout(retryTimeoutRef.current);
-      }
-      
-      retryTimeoutRef.current = setTimeout(() => {
-        setError(null);
-      }, 5000);
-
+      dispatch({
+        type: 'ADD_MESSAGE',
+        payload: {
+          id: uid(),
+          content: `Sorry, something went wrong: ${err instanceof Error ? err.message : 'unknown error'}`,
+          sender: 'assistant' as const,
+          timestamp: Date.now(),
+          message_type: 'text' as const,
+        },
+      });
     } finally {
-      setIsLoading(false);
+      dispatch({ type: 'SET_LOADING', payload: false });
     }
-  }, [isLoading, sessionId]);
+  };
 
-  const handleRetry = useCallback(() => {
-    setError(null);
-    // Could implement retry of last failed message here
-  }, []);
+  const handleExecute = async (proposal: any) => {
+    // A plan carries {operations: [...]}; a single call carries the call fields.
+    const isPlan = proposal && Array.isArray(proposal.operations);
+    const ops = isPlan ? proposal.operations : [proposal];
+    const mutates = ops.some((o: any) => (m => m !== 'GET' && m !== 'HEAD')(String(o?.method || '').trim().toUpperCase()));
 
-  const handleClearChat = useCallback(() => {
-    setMessages([]);
-    setError(null);
-    
-    // Add new welcome message
-    const welcomeMessage: ChatMessage = {
-      id: uuidv4(),
-      content: 'Chat cleared. How can I help you manage your Infoblox infrastructure?',
-      sender: 'assistant',
-      timestamp: new Date(),
-      messageType: 'text',
-      metadata: { sessionId }
-    };
-    
-    setMessages([welcomeMessage]);
-  }, [sessionId]);
+    if (mutates) {
+      const desc = isPlan
+        ? `${ops.length} calls (${ops.map((o: any) => `${o.method} ${o.operation}`).join(', ')})`
+        : `${ops[0]?.method} ${ops[0]?.operation}`;
+      if (!window.confirm(`This will run ${desc} against the Grid. Continue?`)) return;
+    }
 
-  // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (retryTimeoutRef.current) {
-        clearTimeout(retryTimeoutRef.current);
-      }
-    };
-  }, []);
+    dispatch({ type: 'SET_LOADING', payload: true });
+    try {
+      const res = await fetchWithTimeout(`${API_BASE_URL}/api/execute`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ operations: ops, session_id: state.sessionId }),
+      });
+      const data = await res.json();
+      const results = Array.isArray(data.results) ? data.results : [data];
+
+      const lines = results.map((r: any, i: number) => {
+        const op = ops[i] || {};
+        const tag = r?.success ? '✓' : '✗';
+        const detail = r?.success
+          ? JSON.stringify(r.data)
+          : (r?.error || `HTTP ${res.status}`);
+        return `${tag} ${op.method || ''} ${op.operation || ''}: ${detail}`;
+      });
+      const header = data.summary
+        ? `Executed ${data.summary.succeeded}/${data.summary.total} call(s):`
+        : 'Result:';
+      const content = `${header}\n${lines.join('\n')}`;
+
+      dispatch({
+        type: 'ADD_MESSAGE',
+        payload: {
+          id: uid(),
+          content,
+          sender: 'assistant' as const,
+          timestamp: Date.now(),
+          message_type: 'result' as const,
+          metadata: data,
+        },
+      });
+    } catch (err) {
+      dispatch({
+        type: 'ADD_MESSAGE',
+        payload: {
+          id: uid(),
+          content: `✗ Could not reach the server: ${err instanceof Error ? err.message : 'unknown error'}`,
+          sender: 'assistant' as const,
+          timestamp: Date.now(),
+          message_type: 'result' as const,
+        },
+      });
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
+    }
+  };
 
   return (
-    <div className="chat-interface" role="main" aria-label="Infoblox AI Chat Interface">
-      <Header 
-        systemStatus={systemStatus}
-        onClearChat={handleClearChat}
-        sessionId={sessionId}
-      />
-      
-      <div className="chat-container">
-        <div className="chat-messages" role="log" aria-live="polite" aria-label="Chat messages">
-          <MessageList 
-            messages={messages}
-            isLoading={isLoading}
-          />
-          <div ref={messagesEndRef} />
-        </div>
-        
-        <div className="chat-input-container">
-          {error && (
-            <div className="error-banner" role="alert">
-              <div className="error-content">
-                <span className="error-message">{error}</span>
-                <button 
-                  className="button button-outline error-retry"
-                  onClick={handleRetry}
-                  aria-label="Retry last action"
-                >
-                  Retry
-                </button>
-              </div>
-            </div>
-          )}
-          
-          <StatusIndicator 
-            status={systemStatus.status}
-            lastChecked={systemStatus.lastChecked}
-          />
-          
-          <InputField 
-            onSend={handleSendMessage}
-            disabled={isLoading || systemStatus.status === 'unhealthy'}
-            placeholder={
-              systemStatus.status === 'unhealthy' 
-                ? 'System unavailable - please wait...'
-                : 'Ask me about your Infoblox infrastructure...'
+    <div className="chat-interface">
+      <header className="chat-header">
+        <h1>Infoblox AI Chat</h1>
+        <button
+          className="settings-button"
+          onClick={() => setShowSettings(true)}
+          aria-label="LLM provider settings"
+          title="LLM provider settings"
+        >
+          ⚙
+        </button>
+      </header>
+      {showSettings && <ProviderSettings onClose={() => setShowSettings(false)} />}
+      <div className="message-list">
+        {state.messages.map((message) => (
+          <div key={message.id} className={`message-${message.sender}`}>
+            <pre className="message-content">{message.content}</pre>
+            {message.message_type === 'api_call' && message.metadata && (
+              <button
+                className="button-execute"
+                onClick={() => handleExecute(message.metadata)}
+                disabled={state.isLoading}
+                aria-label="Execute proposed WAPI call"
+              >
+                {Array.isArray(message.metadata.operations)
+                  ? `▶ Run all ${message.metadata.operations.length} calls`
+                  : '▶ Run this call'}
+              </button>
+            )}
+          </div>
+        ))}
+        {state.isLoading && (
+          <div className="message-assistant">
+            <p>Thinking...</p>
+          </div>
+        )}
+      </div>
+      <div className="input-field-container">
+        <input
+          type="text"
+          placeholder="Type your message..."
+          className="input-field"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyPress={(e) => {
+            if (e.key === 'Enter') {
+              handleSendMessage();
             }
-          />
-        </div>
+          }}
+          disabled={state.isLoading}
+        />
+        <button onClick={handleSendMessage} className="button-primary" disabled={state.isLoading}>
+          Send
+        </button>
       </div>
     </div>
   );

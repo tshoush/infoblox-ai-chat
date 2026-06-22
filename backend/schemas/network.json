@@ -1,0 +1,1180 @@
+{
+    "cloud_additional_restrictions": [], 
+    "fields": [
+        {
+            "is_array": false, 
+            "name": "authority", 
+            "overridden_by": "use_authority", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "auto_create_reversezone", 
+            "standard_field": false, 
+            "supports": "w", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "bootfile", 
+            "overridden_by": "use_bootfile", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "string"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "bootserver", 
+            "overridden_by": "use_bootserver", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "string"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "cloud_info", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "grid:cloudapi:info"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "comment", 
+            "searchable_by": ":=~", 
+            "standard_field": true, 
+            "supports": "rwus", 
+            "type": [
+                "string"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "conflict_count", 
+            "standard_field": false, 
+            "supports": "r", 
+            "type": [
+                "uint"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "ddns_domainname", 
+            "overridden_by": "use_ddns_domainname", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "string"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "ddns_generate_hostname", 
+            "overridden_by": "use_ddns_generate_hostname", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "ddns_server_always_updates", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "ddns_ttl", 
+            "overridden_by": "use_ddns_ttl", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "uint"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "ddns_update_fixed_addresses", 
+            "overridden_by": "use_ddns_update_fixed_addresses", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "ddns_use_option81", 
+            "overridden_by": "use_ddns_use_option81", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "delete_reason", 
+            "standard_field": false, 
+            "supports": "wu", 
+            "type": [
+                "string"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "deny_bootp", 
+            "overridden_by": "use_deny_bootp", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "dhcp_utilization", 
+            "standard_field": false, 
+            "supports": "r", 
+            "type": [
+                "uint"
+            ]
+        }, 
+        {
+            "enum_values": [
+                "FULL", 
+                "HIGH", 
+                "LOW", 
+                "NORMAL"
+            ], 
+            "is_array": false, 
+            "name": "dhcp_utilization_status", 
+            "standard_field": false, 
+            "supports": "r", 
+            "type": [
+                "enum"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "disable", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "enum_values": [
+                "NONE", 
+                "PENDING", 
+                "RUNNING", 
+                "COMPLETE", 
+                "FAILED"
+            ], 
+            "is_array": false, 
+            "name": "discover_now_status", 
+            "standard_field": false, 
+            "supports": "r", 
+            "type": [
+                "enum"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "discovered_bgp_as", 
+            "searchable_by": ":=~", 
+            "standard_field": false, 
+            "supports": "rs", 
+            "type": [
+                "string"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "discovered_bridge_domain", 
+            "searchable_by": ":=~", 
+            "standard_field": false, 
+            "supports": "rwus", 
+            "type": [
+                "string"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "discovered_tenant", 
+            "searchable_by": ":=~", 
+            "standard_field": false, 
+            "supports": "rwus", 
+            "type": [
+                "string"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "discovered_vlan_id", 
+            "searchable_by": ":=~", 
+            "standard_field": false, 
+            "supports": "rs", 
+            "type": [
+                "string"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "discovered_vlan_name", 
+            "searchable_by": ":=~", 
+            "standard_field": false, 
+            "supports": "rs", 
+            "type": [
+                "string"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "discovered_vrf_description", 
+            "searchable_by": ":=~", 
+            "standard_field": false, 
+            "supports": "rs", 
+            "type": [
+                "string"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "discovered_vrf_name", 
+            "searchable_by": ":=~", 
+            "standard_field": false, 
+            "supports": "rs", 
+            "type": [
+                "string"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "discovered_vrf_rd", 
+            "searchable_by": ":=~", 
+            "standard_field": false, 
+            "supports": "rs", 
+            "type": [
+                "string"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "discovery_basic_poll_settings", 
+            "overridden_by": "use_discovery_basic_polling_settings", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "discovery:basicpollsettings"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "discovery_blackout_setting", 
+            "overridden_by": "use_blackout_setting", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "properties:blackoutsetting"
+            ]
+        }, 
+        {
+            "enum_values": [
+                "NETMRI", 
+                "VDISCOVERY", 
+                "NETWORK_INSIGHT", 
+                "UNKNOWN", 
+                "NONE"
+            ], 
+            "is_array": false, 
+            "name": "discovery_engine_type", 
+            "searchable_by": "=", 
+            "standard_field": false, 
+            "supports": "rs", 
+            "type": [
+                "enum"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "discovery_member", 
+            "overridden_by": "use_enable_discovery", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "string"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "dynamic_hosts", 
+            "standard_field": false, 
+            "supports": "r", 
+            "type": [
+                "uint"
+            ]
+        }, 
+        {
+            "is_array": true, 
+            "name": "email_list", 
+            "overridden_by": "use_email_list", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "string"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "enable_ddns", 
+            "overridden_by": "use_enable_ddns", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "enable_dhcp_thresholds", 
+            "overridden_by": "use_enable_dhcp_thresholds", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "enable_discovery", 
+            "overridden_by": "use_enable_discovery", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "enable_email_warnings", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "enable_ifmap_publishing", 
+            "overridden_by": "use_enable_ifmap_publishing", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "enable_immediate_discovery", 
+            "standard_field": false, 
+            "supports": "wu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "enable_pxe_lease_time", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "enable_snmp_warnings", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": true, 
+            "name": "endpoint_sources", 
+            "standard_field": false, 
+            "supports": "r", 
+            "type": [
+                "ciscoise:endpoint", 
+                "pxgrid:endpoint"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "extattrs", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "extattr"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "high_water_mark", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "uint"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "high_water_mark_reset", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "uint"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "ignore_dhcp_option_list_request", 
+            "overridden_by": "use_ignore_dhcp_option_list_request", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "enum_values": [
+                "NONE", 
+                "CLIENT", 
+                "MACADDR"
+            ], 
+            "is_array": false, 
+            "name": "ignore_id", 
+            "overridden_by": "use_ignore_id", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "enum"
+            ]
+        }, 
+        {
+            "is_array": true, 
+            "name": "ignore_mac_addresses", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "string"
+            ]
+        }, 
+        {
+            "is_array": true, 
+            "name": "ipam_email_addresses", 
+            "overridden_by": "use_ipam_email_addresses", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "string"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "ipam_threshold_settings", 
+            "overridden_by": "use_ipam_threshold_settings", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "setting:ipam:threshold"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "ipam_trap_settings", 
+            "overridden_by": "use_ipam_trap_settings", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "setting:ipam:trap"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "ipv4addr", 
+            "searchable_by": "=~", 
+            "standard_field": false, 
+            "supports": "rwus", 
+            "type": [
+                "string"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "last_rir_registration_update_sent", 
+            "standard_field": false, 
+            "supports": "r", 
+            "type": [
+                "timestamp"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "last_rir_registration_update_status", 
+            "standard_field": false, 
+            "supports": "r", 
+            "type": [
+                "string"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "lease_scavenge_time", 
+            "overridden_by": "use_lease_scavenge_time", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "int"
+            ]
+        }, 
+        {
+            "is_array": true, 
+            "name": "logic_filter_rules", 
+            "overridden_by": "use_logic_filter_rules", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "logicfilterrule"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "low_water_mark", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "uint"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "low_water_mark_reset", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "uint"
+            ]
+        }, 
+        {
+            "is_array": true, 
+            "name": "members", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "msdhcpserver", 
+                "dhcpmember"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "mgm_private", 
+            "overridden_by": "use_mgm_private", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "mgm_private_overridable", 
+            "standard_field": false, 
+            "supports": "r", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "ms_ad_user_data", 
+            "standard_field": false, 
+            "supports": "r", 
+            "type": [
+                "msserver:aduser:data"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "netmask", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "uint"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "network", 
+            "searchable_by": "=~", 
+            "standard_field": true, 
+            "supports": "rwus", 
+            "type": [
+                "string"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "network_container", 
+            "searchable_by": "=", 
+            "standard_field": false, 
+            "supports": "sr", 
+            "type": [
+                "string"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "network_view", 
+            "searchable_by": "=", 
+            "standard_field": true, 
+            "supports": "rws", 
+            "type": [
+                "string"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "nextserver", 
+            "overridden_by": "use_nextserver", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "string"
+            ]
+        }, 
+        {
+            "is_array": true, 
+            "name": "options", 
+            "overridden_by": "use_options", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "dhcpoption"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "port_control_blackout_setting", 
+            "overridden_by": "use_blackout_setting", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "properties:blackoutsetting"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "pxe_lease_time", 
+            "overridden_by": "use_pxe_lease_time", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "uint"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "recycle_leases", 
+            "overridden_by": "use_recycle_leases", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "restart_if_needed", 
+            "standard_field": false, 
+            "supports": "wu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "enum_values": [
+                "RIPE", 
+                "NONE"
+            ], 
+            "is_array": false, 
+            "name": "rir", 
+            "searchable_by": "=", 
+            "standard_field": false, 
+            "supports": "rs", 
+            "type": [
+                "enum"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "rir_organization", 
+            "searchable_by": "=", 
+            "standard_field": false, 
+            "supports": "rwus", 
+            "type": [
+                "string"
+            ]
+        }, 
+        {
+            "enum_values": [
+                "NONE", 
+                "CREATE", 
+                "MODIFY", 
+                "DELETE"
+            ], 
+            "is_array": false, 
+            "name": "rir_registration_action", 
+            "standard_field": false, 
+            "supports": "wu", 
+            "type": [
+                "enum"
+            ]
+        }, 
+        {
+            "enum_values": [
+                "REGISTERED", 
+                "NOT_REGISTERED"
+            ], 
+            "is_array": false, 
+            "name": "rir_registration_status", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "enum"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "same_port_control_discovery_blackout", 
+            "overridden_by": "use_blackout_setting", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "send_rir_request", 
+            "standard_field": false, 
+            "supports": "wu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "static_hosts", 
+            "standard_field": false, 
+            "supports": "r", 
+            "type": [
+                "uint"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "subscribe_settings", 
+            "overridden_by": "use_subscribe_settings", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "ciscoise:subscribesetting"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "template", 
+            "standard_field": false, 
+            "supports": "w", 
+            "type": [
+                "string"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "total_hosts", 
+            "standard_field": false, 
+            "supports": "r", 
+            "type": [
+                "uint"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "unmanaged", 
+            "searchable_by": "=", 
+            "standard_field": false, 
+            "supports": "rwus", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "unmanaged_count", 
+            "standard_field": false, 
+            "supports": "r", 
+            "type": [
+                "uint"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "update_dns_on_lease_renewal", 
+            "overridden_by": "use_update_dns_on_lease_renewal", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "use_authority", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "use_blackout_setting", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "use_bootfile", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "use_bootserver", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "use_ddns_domainname", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "use_ddns_generate_hostname", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "use_ddns_ttl", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "use_ddns_update_fixed_addresses", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "use_ddns_use_option81", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "use_deny_bootp", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "use_discovery_basic_polling_settings", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "use_email_list", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "use_enable_ddns", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "use_enable_dhcp_thresholds", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "use_enable_discovery", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "use_enable_ifmap_publishing", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "use_ignore_dhcp_option_list_request", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "use_ignore_id", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "use_ipam_email_addresses", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "use_ipam_threshold_settings", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "use_ipam_trap_settings", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "use_lease_scavenge_time", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "use_logic_filter_rules", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "use_mgm_private", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "use_nextserver", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "use_options", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "use_pxe_lease_time", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "use_recycle_leases", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "use_subscribe_settings", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "use_update_dns_on_lease_renewal", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "use_zone_associations", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "bool"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "utilization", 
+            "standard_field": false, 
+            "supports": "r", 
+            "type": [
+                "uint"
+            ]
+        }, 
+        {
+            "is_array": false, 
+            "name": "utilization_update", 
+            "standard_field": false, 
+            "supports": "r", 
+            "type": [
+                "timestamp"
+            ]
+        }, 
+        {
+            "is_array": true, 
+            "name": "vlans", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "vlanlink"
+            ]
+        }, 
+        {
+            "is_array": true, 
+            "name": "zone_associations", 
+            "overridden_by": "use_zone_associations", 
+            "standard_field": false, 
+            "supports": "rwu", 
+            "type": [
+                "zoneassociation"
+            ]
+        }
+    ], 
+    "restrictions": [], 
+    "type": "network", 
+    "version": "2.12.3"
+}

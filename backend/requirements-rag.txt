@@ -1,0 +1,4 @@
+# Optional RAG vector store. Installed best-effort by setup.sh.
+# Has no prebuilt wheel on some platforms (e.g. RHEL 7 / glibc 2.17); if it
+# won't build, IACI logs "RAG disabled" and runs without document retrieval.
+faiss-cpu>=1.8.0

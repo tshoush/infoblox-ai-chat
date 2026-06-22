@@ -1,413 +1,350 @@
-"""
-Flask application foundation for Infoblox AI Chat Interface.
-Provides REST API endpoints for chat processing and WAPI operations.
-"""
-
-import logging
-import time
-import os
-from datetime import datetime
-from flask import Flask, request, jsonify, g
+from flask import Flask, jsonify, request
 from flask_cors import CORS
-from typing import Dict, Any, List
-import uuid
-
-from config import config_manager
-from tools import test_connection, get_supported_objects
-from cache import session_manager, llm_cache
-from circuit_breaker import circuit_breaker_manager
-from llm_client import llm_client, LLMRequest
+from backend.config import load_config
+from backend.cache import CacheManager
+from backend.circuit_breaker import CircuitBreaker
+from backend.rag_system import RAGSystem
+from backend.vocabulary import Vocabulary
+from backend.llm_client import LLMClient
+from backend.ai_processor import AIProcessor
+from backend.wapi_client import WapiClient
+from backend.openai_compat import create_openai_blueprint
+from backend.provider_manager import ProviderManager
+import time
+import logging
+import threading
+import hmac
+import os
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Initialize Flask app
 app = Flask(__name__)
-CORS(app)
+config = load_config()
 
-# Load configuration
-config = config_manager.load_config()
+# Enable CORS. Defaults to "*" for local dev; set IACI_CORS_ORIGINS to a
+# comma-separated allowlist (e.g. your UI origin) to lock it down in production.
+_cors = os.getenv("IACI_CORS_ORIGINS", "*")
+_origins = "*" if _cors.strip() == "*" else [o.strip() for o in _cors.split(",") if o.strip()]
+CORS(app, resources={r"/api/*": {"origins": _origins}, r"/v1/*": {"origins": _origins}})
 
-# Global metrics storage (in production, use Redis or proper metrics system)
-metrics = {
-    'requests_total': 0,
-    'requests_by_endpoint': {},
-    'response_times': [],
-    'errors_total': 0,
-    'active_sessions': set()
-}
+# Optional API-key auth. If IACI_API_KEY is set, every /api/* and /v1/* request
+# must present it (X-API-Key header, or "Authorization: Bearer <key>"). Disabled
+# (open) when unset, to keep local dev/tests frictionless. /api/health is exempt
+# so health checks/probes keep working.
+_PUBLIC_PATHS = {"/api/health"}
 
 
 @app.before_request
-def before_request():
-    """Set up request context and metrics."""
-    g.start_time = time.time()
-    g.request_id = str(uuid.uuid4())
-    g.session_id = request.headers.get('X-Session-ID', str(uuid.uuid4()))
-    
-    # Update metrics
-    metrics['requests_total'] += 1
-    endpoint = request.endpoint or 'unknown'
-    metrics['requests_by_endpoint'][endpoint] = metrics['requests_by_endpoint'].get(endpoint, 0) + 1
-    metrics['active_sessions'].add(g.session_id)
-    
-    logger.info(f"Request {g.request_id} started - {request.method} {request.path}")
+def require_api_key():
+    if request.method == "OPTIONS":
+        return  # let CORS preflight through
+    api_key = os.getenv("IACI_API_KEY")
+    if not api_key:
+        return  # auth disabled
+    path = request.path
+    if path in _PUBLIC_PATHS or not (path.startswith("/api/") or path.startswith("/v1/")):
+        return
+    provided = request.headers.get("X-API-Key")
+    if not provided:
+        auth = request.headers.get("Authorization", "")
+        if auth.startswith("Bearer "):
+            provided = auth[7:]
+    if not provided or not hmac.compare_digest(provided, api_key):
+        return jsonify({"error": "Unauthorized"}), 401
+
+# Initialize the cache manager
+cache_manager = CacheManager(config.cache)
+
+# Initialize the circuit breaker
+circuit_breaker = CircuitBreaker()
+
+# Initialize the RAG system
+rag_system = RAGSystem()
+
+# Initialize the vocabulary
+vocabulary = Vocabulary()
+
+# Initialize LLM Client and AI Processor
+llm_client = LLMClient(config.llm, cache_manager, circuit_breaker)
+ai_processor = AIProcessor(llm_client, rag_system, vocabulary)
+
+# Manages the active LLM provider + per-provider API keys (runtime-switchable).
+provider_manager = ProviderManager(llm_client)
+
+# Initialize the WAPI client used to execute approved operations.
+wapi_client = WapiClient(config.infoblox)
+
+# Dedicated audit logger for executed operations.
+audit_logger = logging.getLogger("iaci.audit")
+
+# OpenAI-compatible endpoints (/v1/*) so any OpenAI-compatible chat UI
+# (Open WebUI, LibreChat, ...) can use IACI as a selectable model. IACI is
+# advertised as several models — the default plus iaci-<provider> for each
+# configured provider — so the UI's model dropdown switches the agent's LLM.
+from backend import providers as _providers
 
 
-@app.after_request
-def after_request(response):
-    """Log request completion and update metrics."""
-    duration = time.time() - g.start_time
-    metrics['response_times'].append(duration)
-    
-    # Keep only last 1000 response times for memory management
-    if len(metrics['response_times']) > 1000:
-        metrics['response_times'] = metrics['response_times'][-1000:]
-    
-    logger.info(f"Request {g.request_id} completed - {response.status_code} in {duration:.3f}s")
+def _resolve_processor(model):
+    """Map a requested model id to the AIProcessor for that provider."""
+    provider = None
+    if isinstance(model, str) and model.startswith("iaci-") and model != "iaci-infoblox-wapi":
+        provider = _providers.canonical(model[len("iaci-"):])
+    if not provider or provider == provider_manager.active:
+        return ai_processor
+    client = provider_manager.client_for(provider)
+    if client is None:
+        return ai_processor  # not configured -> fall back to the active provider
+    return AIProcessor(client, rag_system, vocabulary)
+
+
+app.register_blueprint(create_openai_blueprint(
+    ai_processor, wapi_client,
+    list_model_ids=provider_manager.model_ids,
+    resolve_processor=_resolve_processor,
+))
+
+# Basic metrics (request_count is mutated from multiple worker threads)
+request_count = 0
+request_count_lock = threading.Lock()
+start_time = time.time()
+
+class APIError(Exception):
+    def __init__(self, message, status_code=500, payload=None):
+        super().__init__()
+        self.message = message
+        self.status_code = status_code
+        self.payload = payload
+
+    def to_dict(self):
+        rv = dict(self.payload or ())
+        rv['message'] = self.message
+        return rv
+
+@app.errorhandler(APIError)
+def handle_api_error(error):
+    response = jsonify(error.to_dict())
+    response.status_code = error.status_code
     return response
 
+@app.before_request
+def log_request():
+    global request_count
+    with request_count_lock:
+        request_count += 1
+    app.logger.info(f"Request received: {request.method} {request.path}")
 
-@app.errorhandler(Exception)
-def handle_error(error):
-    """Global error handler with structured error responses."""
-    metrics['errors_total'] += 1
-    
-    error_id = str(uuid.uuid4())
-    logger.error(f"Error {error_id} in request {getattr(g, 'request_id', 'unknown')}: {str(error)}")
-    
-    # Categorize errors
-    if isinstance(error, ConnectionError):
-        error_type = "connection"
-        message = "Failed to connect to external service"
-        status_code = 503
-    elif isinstance(error, TimeoutError):
-        error_type = "timeout"
-        message = "Request timed out"
-        status_code = 504
-    elif isinstance(error, ValueError):
-        error_type = "validation"
-        message = "Invalid request parameters"
-        status_code = 400
-    else:
-        error_type = "internal"
-        message = "An unexpected error occurred"
-        status_code = 500
-    
-    return jsonify({
-        'error': {
-            'id': error_id,
-            'type': error_type,
-            'message': message,
-            'timestamp': datetime.utcnow().isoformat(),
-            'request_id': getattr(g, 'request_id', None)
-        }
-    }), status_code
+@app.after_request
+def log_response(response):
+    app.logger.info(f"Response sent: {request.method} {request.path} - Status {response.status_code}")
+    return response
 
-
-# Health and Status Endpoints
-
-@app.route('/health', methods=['GET'])
+@app.route("/api/health")
 def health_check():
-    """Health check endpoint for load balancers and monitoring."""
+    """Health check endpoint to verify that the server is running."""
+    return jsonify({"status": "ok"})
+
+@app.route("/api/providers", methods=["GET"])
+def list_providers():
+    """Lists supported LLM providers with examples and which keys are set."""
+    return jsonify(provider_manager.public())
+
+@app.route("/api/providers", methods=["POST"])
+def set_provider():
+    """Saves a provider's API key/base_url/model and (by default) activates it."""
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        raise APIError("Request body must be a JSON object", 400)
+    provider = payload.get("provider")
+    if not provider:
+        raise APIError("'provider' is required", 400)
     try:
-        # Test basic functionality
-        config_valid = len(config_manager.validate_config()) == 0
-        
-        # Test Infoblox connectivity (with timeout)
-        try:
-            infoblox_connected = test_connection()
-        except Exception:
-            infoblox_connected = False
-        
-        health_status = {
-            'status': 'healthy' if config_valid and infoblox_connected else 'degraded',
-            'timestamp': datetime.utcnow().isoformat(),
-            'version': '1.0.0',
-            'checks': {
-                'configuration': 'pass' if config_valid else 'fail',
-                'infoblox_connection': 'pass' if infoblox_connected else 'fail'
-            }
-        }
-        
-        status_code = 200 if health_status['status'] == 'healthy' else 503
-        return jsonify(health_status), status_code
-        
-    except Exception as e:
-        logger.error(f"Health check failed: {e}")
-        return jsonify({
-            'status': 'unhealthy',
-            'timestamp': datetime.utcnow().isoformat(),
-            'error': str(e)
-        }), 503
-
-
-@app.route('/status', methods=['GET'])
-def status():
-    """Detailed status endpoint with metrics."""
-    try:
-        avg_response_time = sum(metrics['response_times']) / len(metrics['response_times']) if metrics['response_times'] else 0
-        
-        return jsonify({
-            'status': 'operational',
-            'timestamp': datetime.utcnow().isoformat(),
-            'metrics': {
-                'requests_total': metrics['requests_total'],
-                'errors_total': metrics['errors_total'],
-                'active_sessions': len(metrics['active_sessions']),
-                'avg_response_time': round(avg_response_time, 3),
-                'endpoints': metrics['requests_by_endpoint']
-            },
-            'configuration': {
-                'infoblox_grid': config.infoblox.grid_ip,
-                'llm_provider': config.llm.provider,
-                'cache_enabled': config.cache.enable_cache,
-                'max_concurrent_users': config.performance.max_concurrent_users
-            },
-            'supported_objects': get_supported_objects(),
-            'circuit_breakers': circuit_breaker_manager.get_all_states(),
-            'llm_status': llm_client.get_provider_status()
-        })
-        
-    except Exception as e:
-        logger.error(f"Status check failed: {e}")
-        return jsonify({
-            'status': 'error',
-            'timestamp': datetime.utcnow().isoformat(),
-            'error': str(e)
-        }), 500
-
-
-@app.route('/metrics', methods=['GET'])
-def metrics_endpoint():
-    """Prometheus-style metrics endpoint."""
-    try:
-        avg_response_time = sum(metrics['response_times']) / len(metrics['response_times']) if metrics['response_times'] else 0
-        
-        prometheus_metrics = f'''# HELP iaci_requests_total Total number of requests
-# TYPE iaci_requests_total counter
-iaci_requests_total {metrics['requests_total']}
-
-# HELP iaci_errors_total Total number of errors
-# TYPE iaci_errors_total counter
-iaci_errors_total {metrics['errors_total']}
-
-# HELP iaci_active_sessions Current number of active sessions
-# TYPE iaci_active_sessions gauge
-iaci_active_sessions {len(metrics['active_sessions'])}
-
-# HELP iaci_response_time_seconds Average response time in seconds
-# TYPE iaci_response_time_seconds gauge
-iaci_response_time_seconds {avg_response_time}
-'''
-        
-        return prometheus_metrics, 200, {'Content-Type': 'text/plain'}
-        
-    except Exception as e:
-        logger.error(f"Metrics endpoint failed: {e}")
-        return f"# Error generating metrics: {e}", 500, {'Content-Type': 'text/plain'}
-
-
-# API Endpoints (Stubs for now - will be implemented in later tasks)
-
-@app.route('/api/chat', methods=['POST'])
-def chat():
-    """Process chat messages and return AI responses."""
-    try:
-        data = request.get_json()
-        if not data or 'message' not in data:
-            return jsonify({'error': 'Message is required'}), 400
-        
-        message = data['message']
-        session_id = g.session_id
-        
-        # Get or create session
-        session_data = session_manager.get_session(session_id)
-        if not session_data:
-            session_manager.create_session()
-            session_data = session_manager.get_session(session_id)
-        
-        # Update session activity
-        session_manager.update_session(session_id, {
-            'message_count': session_data.get('message_count', 0) + 1
-        })
-        
-        # Create LLM request
-        llm_request = LLMRequest(
-            prompt=llm_client.format_prompt_for_wapi(message, session_data.get('context', {})),
-            context=session_data.get('context', {}),
-            temperature=0.7,
-            max_tokens=2000
+        result = provider_manager.set_provider(
+            provider,
+            api_key=payload.get("api_key"),
+            base_url=payload.get("base_url"),
+            model=payload.get("model"),
+            activate=payload.get("activate", True),
         )
-        
-        # Process with LLM
-        try:
-            llm_response = llm_client.send_request(llm_request)
-            
-            # Parse the response for WAPI operations
-            parsed_response = llm_client.parse_wapi_response(llm_response.content)
-            
-            # Generate proposed API calls based on parsed response
-            proposed_calls = []
-            if parsed_response.get('intent') != 'unknown' and parsed_response.get('object_type') != 'unknown':
-                proposed_calls.append({
-                    'id': str(uuid.uuid4()),
-                    'method': _intent_to_method(parsed_response.get('intent', 'GET')),
-                    'endpoint': f"/wapi/{config.infoblox.wapi_version}/{parsed_response.get('object_type', '')}",
-                    'parameters': parsed_response.get('parameters', {}),
-                    'description': parsed_response.get('explanation', 'WAPI operation'),
-                    'confidence': parsed_response.get('confidence', 0.5)
-                })
-            
-            response = {
-                'response': _format_ai_response(llm_response.content, parsed_response),
-                'session_id': session_id,
-                'timestamp': datetime.utcnow().isoformat(),
-                'proposed_calls': proposed_calls,
-                'confidence': parsed_response.get('confidence', llm_response.confidence),
-                'cached': llm_response.cached,
-                'provider': llm_response.provider
-            }
-            
-        except Exception as llm_error:
-            logger.warning(f"LLM processing failed: {llm_error}")
-            
-            # Fallback to basic keyword processing
-            response = {
-                'response': f"I understand you want to work with: '{message}'. Due to AI service limitations, please try using more specific WAPI commands or try again later.",
-                'session_id': session_id,
-                'timestamp': datetime.utcnow().isoformat(),
-                'proposed_calls': [],
-                'confidence': 0.2,
-                'cached': False,
-                'provider': 'fallback'
-            }
-        
-        return jsonify(response)
-        
-    except Exception as e:
-        logger.error(f"Chat endpoint error: {e}")
-        raise
+    except ValueError as e:
+        raise APIError(str(e), 400)
+    return jsonify(result)
 
+@app.route("/api/providers/models", methods=["POST"])
+def provider_models():
+    """Fetches a provider's live model list once an API key is supplied."""
+    payload = request.get_json(silent=True) or {}
+    provider = payload.get("provider")
+    if not provider:
+        raise APIError("'provider' is required", 400)
+    try:
+        result = provider_manager.list_models(
+            provider, api_key=payload.get("api_key"), base_url=payload.get("base_url"))
+    except ValueError as e:
+        raise APIError(str(e), 400)
+    return jsonify(result)
 
-def _intent_to_method(intent: str) -> str:
-    """Convert intent to HTTP method."""
-    intent_map = {
-        'search': 'GET',
-        'create': 'POST', 
-        'update': 'PUT',
-        'delete': 'DELETE'
-    }
-    return intent_map.get(intent.lower(), 'GET')
+@app.route("/api/providers/test", methods=["POST"])
+def test_provider():
+    """Sends a tiny prompt through the active provider to verify it works."""
+    return jsonify(provider_manager.test())
 
+@app.route("/api/status")
+def status():
+    """Reports the readiness of each downstream component."""
+    return jsonify({
+        "status": "ok",
+        "components": {
+            "llm_provider": llm_client.config.provider,
+            "llm_model": llm_client.config.model or llm_client._default_model(),
+            "cache": "connected" if cache_manager.redis_client else "disabled",
+            "rag": "enabled" if getattr(rag_system, "vector_store", None) else "disabled",
+            "circuit_breaker": circuit_breaker.state,
+        },
+        "uptime_seconds": round(time.time() - start_time, 2),
+    })
 
-def _format_ai_response(raw_response: str, parsed_response: Dict[str, Any]) -> str:
-    """Format AI response for user display."""
-    if parsed_response.get('intent') == 'unknown':
-        return f"I'm not sure how to help with that request. Could you please be more specific about what you'd like to do with your Infoblox infrastructure?"
-    
-    intent = parsed_response.get('intent', 'unknown')
-    object_type = parsed_response.get('object_type', 'unknown')
-    explanation = parsed_response.get('explanation', '')
-    
-    return f"I understand you want to {intent} {object_type.replace('_', ' ')} records. {explanation}"
+@app.route("/api/metrics")
+def metrics():
+    """Provides basic application metrics."""
+    uptime = time.time() - start_time
+    return jsonify({
+        "request_count": request_count,
+        "uptime_seconds": round(uptime, 2)
+    })
 
+@app.route("/api/chat", methods=["POST"])
+def chat():
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        raise APIError("Request body must be a JSON object", 400)
 
-@app.route('/api/execute', methods=['POST'])
+    user_message = payload.get("message")
+    session_id = payload.get("session_id")
+
+    if not user_message or not isinstance(user_message, str) or not user_message.strip():
+        raise APIError("Message is required", 400)
+
+    if not session_id:
+        session_id = cache_manager.generate_session_id()
+
+    # Retrieve session context (e.g., previous messages, user preferences)
+    session_context = cache_manager.get_session_data(session_id)
+
+    # Process the user's message using the AI processor
+    response = ai_processor.process_query(user_message, session_context.get("context"))
+
+    # Update session context (e.g., add current message and response)
+    # For simplicity, just storing the last message and response as context
+    new_session_context = {"last_message": user_message, "last_response": response, "context": response.get("content")}
+    cache_manager.set_session_data(session_id, new_session_context)
+
+    return jsonify({"session_id": session_id, "response": response})
+
+@app.route("/api/execute", methods=["POST"])
 def execute():
-    """Execute approved API calls."""
-    try:
-        data = request.get_json()
-        if not data or 'calls' not in data:
-            return jsonify({'error': 'API calls are required'}), 400
-        
-        calls = data['calls']
-        
-        # TODO: Implement API call execution (Task 3.4)
-        # For now, return a placeholder response
-        response = {
-            'results': [{'status': 'pending', 'message': 'Execution will be implemented in Task 3.4'} for _ in calls],
-            'session_id': g.session_id,
-            'timestamp': datetime.utcnow().isoformat()
-        }
-        
-        return jsonify(response)
-        
-    except Exception as e:
-        logger.error(f"Execute endpoint error: {e}")
-        raise
+    """Executes one or more user-approved WAPI operations.
 
+    Accepts either a single operation object or ``{"operations": [...]}`` for
+    batch execution. Every operation is validated and audit-logged.
+    """
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        raise APIError("Request body must be a JSON object", 400)
 
-@app.route('/api/suggestions', methods=['GET'])
-def suggestions():
-    """Get auto-suggestions for user input."""
-    try:
-        query = request.args.get('q', '')
-        
-        # TODO: Implement suggestion system (Task 3.5)
-        # For now, return basic suggestions
-        suggestions_list = [
-            {'text': 'Show all A records', 'type': 'query'},
-            {'text': 'List networks', 'type': 'query'},
-            {'text': 'Find host records', 'type': 'query'},
-            {'text': 'Create DNS record', 'type': 'action'},
-            {'text': 'Search by IP address', 'type': 'query'}
-        ]
-        
-        # Filter suggestions based on query
-        if query:
-            suggestions_list = [s for s in suggestions_list if query.lower() in s['text'].lower()]
-        
+    if "operations" in payload:
+        operations = payload.get("operations")
+        if not isinstance(operations, list) or not operations:
+            raise APIError("'operations' must be a non-empty list", 400)
+    else:
+        if not payload.get("operation"):
+            raise APIError("'operation' is required", 400)
+        operations = [payload]
+
+    session_id = payload.get("session_id")
+    for op in operations:
+        audit_logger.info(
+            "EXECUTE session=%s method=%s operation=%s ref=%s",
+            session_id, (op.get("method") if isinstance(op, dict) else None),
+            (op.get("operation") if isinstance(op, dict) else None),
+            (op.get("ref") if isinstance(op, dict) else None),
+        )
+
+    results = wapi_client.execute_batch(operations)
+    succeeded = sum(1 for r in results if r.get("success"))
+    audit_logger.info("EXECUTE session=%s completed %d/%d succeeded", session_id, succeeded, len(results))
+
+    return jsonify({
+        "session_id": session_id,
+        "results": results,
+        "summary": {"total": len(results), "succeeded": succeeded, "failed": len(results) - succeeded},
+    })
+
+@app.route("/api/agent", methods=["POST"])
+def agent():
+    """Answers a question by planning WAPI calls, running the read-only ones,
+    and synthesizing the results into a plain-English answer.
+
+    Read-only plans (all GET) run automatically. Any plan that would modify the
+    Grid is returned for explicit approval instead of being executed here.
+    """
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        raise APIError("Request body must be a JSON object", 400)
+
+    message = payload.get("message")
+    if not message or not isinstance(message, str) or not message.strip():
+        raise APIError("Message is required", 400)
+
+    plan = ai_processor.process_query(message)
+    rtype = plan.get("response_type")
+
+    if rtype == "text":
+        return jsonify({"answer": plan.get("content"), "executed": False, "steps": []})
+
+    operations = plan.get("operations") or [plan.get("proposal")]
+    operations = [op for op in operations if isinstance(op, dict)]
+
+    if not operations:
+        # No concrete calls — don't run an empty batch and synthesize a
+        # hallucinated answer; ask the user to rephrase.
+        return jsonify({"answer": "I couldn't turn that into a specific Infoblox operation. "
+                                  "Could you rephrase or be more specific?",
+                        "executed": False, "steps": []})
+
+    if any((op.get("method") or "GET").upper() != "GET" for op in operations):
+        # Don't silently mutate the Grid — hand the plan back for approval,
+        # with pre-flight warnings (duplicates/destructive) for the approver.
         return jsonify({
-            'suggestions': suggestions_list[:10],  # Limit to 10 suggestions
-            'query': query,
-            'timestamp': datetime.utcnow().isoformat()
+            "answer": None,
+            "executed": False,
+            "requires_approval": True,
+            "plan": operations,
+            "warnings": wapi_client.preflight(operations),
+            "message": "This plan would modify the Grid. Review and run it explicitly.",
         })
-        
-    except Exception as e:
-        logger.error(f"Suggestions endpoint error: {e}")
-        raise
 
+    results = wapi_client.execute_batch(operations)
+    answer = ai_processor.synthesize_answer(message, operations, results)
+    return jsonify({
+        "answer": answer,
+        "executed": True,
+        "steps": [{"call": op, "result": res} for op, res in zip(operations, results)],
+    })
 
-@app.route('/api/schema/<object_name>', methods=['GET'])
-def get_object_schema(object_name):
-    """Get WAPI object schema information."""
-    try:
-        from tools import get_schema
-        
-        schema = get_schema(object_name)
-        return jsonify({
-            'object': object_name,
-            'schema': schema,
-            'timestamp': datetime.utcnow().isoformat()
-        })
-        
-    except Exception as e:
-        logger.error(f"Schema endpoint error for {object_name}: {e}")
-        raise
+@app.errorhandler(404)
+def not_found(error):
+    app.logger.error(f"404 Not Found: {request.path}")
+    return jsonify({"error": "Not Found", "code": 404}), 404
 
+@app.errorhandler(500)
+def internal_server_error(error):
+    app.logger.exception(f"500 Internal Server Error: {error}")
+    return jsonify({"error": "Internal Server Error", "code": 500}), 500
 
-if __name__ == '__main__':
-    # Validate configuration on startup
-    config_errors = config_manager.validate_config()
-    if config_errors:
-        logger.warning(f"Configuration issues detected: {config_errors}")
-    
-    # Log startup information
-    logger.info(f"Starting Infoblox AI Chat Interface")
-    logger.info(f"Infoblox Grid: {config.infoblox.grid_ip}")
-    logger.info(f"LLM Provider: {config.llm.provider}")
-    logger.info(f"Cache Enabled: {config.cache.enable_cache}")
-    
-    # Start Flask development server
-    port = int(os.environ.get('PORT', 5002))
-    app.run(
-        host='0.0.0.0',
-        port=port,
-        debug=True,
-        threaded=True
-    )
+if __name__ == "__main__":
+    # Debug mode exposes the Werkzeug debugger (arbitrary code execution); only
+    # enable it explicitly via FLASK_DEBUG. Production should run under gunicorn.
+    import os
+    debug = os.getenv("FLASK_DEBUG", "0").lower() in ("1", "true", "t")
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)), debug=debug)

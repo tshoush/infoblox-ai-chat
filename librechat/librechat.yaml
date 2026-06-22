@@ -1,0 +1,17 @@
+version: 1.2.1
+cache: true
+
+# Register the IACI backend as a custom OpenAI-compatible endpoint so LibreChat
+# users can select "IACI Infoblox" as a model. The backend runs on the host at
+# :5050; host.docker.internal reaches it from inside the container.
+endpoints:
+  custom:
+    - name: "IACI"
+      apiKey: "iaci"
+      baseURL: "http://host.docker.internal:5050/v1"
+      models:
+        default: ["iaci-infoblox-wapi"]
+        fetch: false
+      titleConvo: false
+      modelDisplayLabel: "IACI Infoblox"
+      forcePrompt: false

@@ -60,6 +60,9 @@ pids
 config.json
 .env.local
 .env.production
+.openai
+*.key
+TestKey/
 
 # Node modules (for frontend)
 node_modules/
@@ -81,3 +84,23 @@ yarn-error.log*
 # Temporary files
 *.tmp
 *.temp
+
+# RAG persisted FAISS index (rebuilt from rag_docs/)
+rag_index/
+
+# Large reference PDFs indexed by RAG (not committed)
+rag_docs/*.pdf
+
+# Scraped wapidoc HTML (derived, re-downloadable)
+rag_docs/wapidoc/
+
+# LibreChat local secrets
+librechat/.env
+
+# Per-provider API keys saved via the settings UI
+backend/providers.local.json
+
+# Test coverage artifacts
+.coverage
+htmlcov/
+.coverage.*

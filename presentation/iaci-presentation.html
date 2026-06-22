@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>IACI — Infoblox AI Chat Interface</title>
+<style>
+  :root{
+    --bg0:#070b16; --bg1:#0c1326; --ink:#e8eefc; --muted:#9fb0d0;
+    --accent:#38e1c4; --accent2:#5b8cff; --accent3:#b06bff;
+    --card:rgba(255,255,255,.05); --border:rgba(255,255,255,.12);
+    --good:#3ddc84; --warn:#ffb84d; --bad:#ff6b6b;
+    --shadow:0 30px 80px rgba(0,0,0,.55);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:radial-gradient(1200px 700px at 15% -10%,rgba(91,140,255,.18),transparent 60%),
+               radial-gradient(1000px 600px at 110% 20%,rgba(176,107,255,.15),transparent 55%),
+               radial-gradient(900px 600px at 50% 120%,rgba(56,225,196,.12),transparent 60%),
+               linear-gradient(180deg,var(--bg0),var(--bg1));
+    color:var(--ink); overflow:hidden;
+  }
+  .deck{position:relative;z-index:2;height:100%;width:100%}
+  .slide{
+    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    padding:6vh 8vw;opacity:0;visibility:hidden;transform:translateY(24px) scale(.99);
+    transition:opacity .6s ease,transform .6s ease,visibility .6s;
+  }
+  .slide.active{opacity:1;visibility:visible;transform:none}
+  .wrap{width:min(1100px,100%);}
+  .eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:.8rem;letter-spacing:.18em;
+    text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:18px;
+    border:1px solid var(--border);background:var(--card);padding:7px 14px;border-radius:999px}
+  h1{font-size:clamp(2.4rem,6vw,4.6rem);line-height:1.02;font-weight:800;letter-spacing:-.02em}
+  h2{font-size:clamp(1.7rem,3.6vw,2.8rem);line-height:1.1;font-weight:800;letter-spacing:-.02em;margin-bottom:8px}
+  .grad{background:linear-gradient(100deg,var(--accent),var(--accent2) 55%,var(--accent3));
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .lead{color:var(--muted);font-size:clamp(1.05rem,1.7vw,1.4rem);line-height:1.5;margin-top:18px;max-width:46ch}
+  .sub{color:var(--muted);font-size:1.05rem;margin-top:6px}
+
+  .reveal{opacity:0;transform:translateY(16px)}
+  .active .reveal{animation:rise .7s forwards}
+  .active .reveal:nth-child(2){animation-delay:.08s}
+  .active .reveal:nth-child(3){animation-delay:.16s}
+  .active .reveal:nth-child(4){animation-delay:.24s}
+  .active .reveal:nth-child(5){animation-delay:.32s}
+  @keyframes rise{to{opacity:1;transform:none}}
+
+  .grid{display:grid;gap:16px;margin-top:26px}
+  .g2{grid-template-columns:repeat(2,1fr)} .g3{grid-template-columns:repeat(3,1fr)}
+  @media(max-width:820px){.g2,.g3{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:20px 22px;
+    backdrop-filter:blur(8px);box-shadow:var(--shadow)}
+  .card h3{font-size:1.15rem;margin-bottom:6px;display:flex;align-items:center;gap:10px}
+  .card p{color:var(--muted);font-size:.98rem;line-height:1.5}
+  .ico{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-size:1.1rem;
+    background:linear-gradient(135deg,rgba(56,225,196,.25),rgba(91,140,255,.25));border:1px solid var(--border)}
+
+  .pills{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}
+  .pill{border:1px solid var(--border);background:var(--card);border-radius:999px;padding:9px 16px;
+    font-weight:600;font-size:.95rem;display:flex;align-items:center;gap:8px}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--accent)}
+
+  /* architecture diagram */
+  .arch{margin-top:26px;display:flex;flex-direction:column;gap:16px;align-items:center}
+  .row{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+  .node{border:1px solid var(--border);background:var(--card);border-radius:14px;padding:12px 16px;
+    font-weight:600;font-size:.92rem;text-align:center;min-width:120px;backdrop-filter:blur(6px)}
+  .node.core{background:linear-gradient(135deg,rgba(91,140,255,.28),rgba(176,107,255,.22));
+    font-size:1.05rem;padding:18px 26px;border-color:rgba(255,255,255,.25)}
+  .arrow{color:var(--muted);font-size:1.4rem;line-height:1}
+
+  /* interactive data-flow */
+  .flowstage{position:relative;margin-top:14px}
+  .flow{display:flex;flex-direction:column;align-items:center;gap:4px}
+  .lane{display:flex;align-items:center;gap:14px;justify-content:center}
+  .fnode{border:1px solid var(--border);background:var(--card);border-radius:13px;padding:9px 16px;
+    font-weight:700;font-size:.92rem;display:flex;align-items:center;gap:9px;opacity:.4;cursor:pointer;
+    transition:opacity .35s,transform .35s,box-shadow .35s,border-color .35s;backdrop-filter:blur(6px)}
+  .fnode.small{font-size:.82rem;padding:7px 12px;font-weight:600}
+  .fnode.hot{opacity:1;transform:translateY(-2px) scale(1.05);border-color:var(--accent);
+    box-shadow:0 0 0 1px var(--accent),0 14px 40px rgba(56,225,196,.28)}
+  .branch{display:flex;flex-direction:column;gap:7px}
+  .conn{color:var(--muted);font-size:.85rem;display:flex;align-items:center;gap:7px;opacity:.55}
+  .api{font-family:ui-monospace,monospace;font-size:.74rem;color:var(--accent2);
+    border:1px solid var(--border);border-radius:6px;padding:1px 6px}
+  .packet{position:absolute;left:0;top:0;width:16px;height:16px;border-radius:50%;
+    background:radial-gradient(circle,#fff,var(--accent));box-shadow:0 0 18px 6px rgba(56,225,196,.7);
+    transform:translate(-50%,-50%);opacity:0;pointer-events:none;z-index:5;
+    transition:left .55s cubic-bezier(.5,0,.3,1),top .55s cubic-bezier(.5,0,.3,1),opacity .3s}
+  .packet.on{opacity:1}
+  .flowcap{margin-top:14px;min-height:3em;color:var(--ink);font-size:1.02rem;line-height:1.5;
+    background:var(--card);border:1px solid var(--border);border-radius:13px;padding:12px 18px;text-align:center}
+  .flowctl{display:flex;gap:10px;justify-content:center;align-items:center;margin-top:12px}
+  .flowctl button{border:1px solid var(--border);background:var(--card);color:var(--ink);border-radius:10px;
+    padding:8px 14px;cursor:pointer;font-weight:600;font-size:.88rem;transition:border-color .15s}
+  .flowctl button:hover,.flowctl button.on{border-color:var(--accent);color:var(--accent)}
+  .flowctl .step-ind{color:var(--muted);font-variant-numeric:tabular-nums;font-size:.85rem;margin-left:4px}
+
+  .stat{display:flex;flex-direction:column;gap:4px}
+  .stat b{font-size:clamp(2rem,4vw,3.2rem);font-weight:800}
+  .stat span{color:var(--muted);font-size:.95rem}
+
+  .chat{background:#0a1124;border:1px solid var(--border);border-radius:16px;padding:16px;font-size:.95rem;
+    box-shadow:var(--shadow)}
+  .msg{padding:10px 14px;border-radius:12px;margin:8px 0;max-width:80%}
+  .me{background:linear-gradient(135deg,var(--accent2),#3f6fe0);margin-left:auto}
+  .bot{background:rgba(255,255,255,.06);border:1px solid var(--border)}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.86rem;color:#bfe9df;white-space:pre-wrap}
+  .ok{color:var(--good)} .wn{color:var(--warn)} .bd{color:var(--bad)}
+
+  /* chrome */
+  .progress{position:fixed;top:0;left:0;height:4px;z-index:10;
+    background:linear-gradient(90deg,var(--accent),var(--accent2),var(--accent3));width:0;transition:width .5s ease}
+  .counter{position:fixed;left:24px;bottom:18px;z-index:10;color:var(--muted);font-size:.85rem;
+    font-variant-numeric:tabular-nums}
+  .nav{position:fixed;right:24px;bottom:16px;z-index:10;display:flex;gap:8px}
+  .btn{border:1px solid var(--border);background:var(--card);color:var(--ink);width:42px;height:42px;
+    border-radius:12px;cursor:pointer;font-size:1.1rem;display:grid;place-items:center;backdrop-filter:blur(8px);
+    transition:transform .15s,border-color .15s}
+  .btn:hover{transform:translateY(-2px);border-color:var(--accent)}
+  .dots{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:10;display:flex;gap:9px}
+  .d{width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.22);cursor:pointer;transition:.2s}
+  .d.on{background:var(--accent);transform:scale(1.3)}
+
+  /* voice dock */
+  .voice{position:fixed;left:24px;top:18px;z-index:11;display:flex;align-items:center;gap:8px;
+    background:var(--card);border:1px solid var(--border);border-radius:14px;padding:8px 10px;backdrop-filter:blur(10px)}
+  .voice button{border:none;background:transparent;color:var(--ink);cursor:pointer;font-size:1rem;
+    width:34px;height:34px;border-radius:9px;display:grid;place-items:center}
+  .voice button:hover{background:rgba(255,255,255,.08)}
+  .voice button.on{color:var(--accent)}
+  .voice select{background:#0a1124;color:var(--ink);border:1px solid var(--border);border-radius:9px;
+    padding:6px 8px;font-size:.8rem;max-width:150px}
+  .eq{display:flex;gap:2px;align-items:flex-end;height:18px;width:22px}
+  .eq i{flex:1;background:var(--accent);border-radius:2px;height:30%}
+  .voice.speaking .eq i{animation:eq .9s ease-in-out infinite}
+  .voice.speaking .eq i:nth-child(2){animation-delay:.15s}
+  .voice.speaking .eq i:nth-child(3){animation-delay:.3s}
+  @keyframes eq{0%,100%{height:25%}50%{height:95%}}
+  .hint{position:fixed;right:24px;top:20px;z-index:10;color:var(--muted);font-size:.78rem;opacity:.7}
+  .kbd{border:1px solid var(--border);border-radius:6px;padding:1px 6px;font-size:.72rem;background:var(--card)}
+</style>
+</head>
+<body>
+<div class="progress" id="progress"></div>
+
+<div class="voice" id="voiceDock" title="Narration">
+  <div class="eq"><i></i><i></i><i></i></div>
+  <button id="vPlay" title="Play / pause narration (P)">▶</button>
+  <button id="vTour" title="Auto tour — narrate &amp; advance (T)">⏩</button>
+  <button id="vMute" class="on" title="Voice on/off (M)">🔊</button>
+  <select id="vVoice" title="Voice"></select>
+</div>
+<div class="hint">Use <span class="kbd">←</span> <span class="kbd">→</span> · <span class="kbd">P</span> narrate · <span class="kbd">T</span> tour · <span class="kbd">F</span> full</div>
+
+<div class="deck" id="deck">
+
+  <!-- 1 -->
+  <section class="slide" data-narration="Welcome. This is I-A-C-I — the Infoblox A-I Chat Interface. It turns plain English into safe, reviewed Infoblox network operations. In the next few minutes you'll see how it understands intent, plans multi-step changes, guards them with approvals and warnings, and runs anywhere your team already works.">
+    <div class="wrap">
+      <div class="eyebrow reveal"><span class="dot"></span> Infoblox · Natural-language NetOps</div>
+      <h1 class="reveal">Talk to your network.<br><span class="grad">IACI</span> does the rest.</h1>
+      <p class="lead reveal">An AI chat interface that converts natural language into precise, reviewed Infoblox WAPI operations — with the guardrails network teams actually need.</p>
+      <div class="pills reveal">
+        <span class="pill"><span class="dot"></span> Natural language → WAPI</span>
+        <span class="pill"><span class="dot"></span> Human approval &amp; audit</span>
+        <span class="pill"><span class="dot"></span> Runs in your tools</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2 -->
+  <section class="slide" data-narration="The Infoblox W-A-P-I is powerful, but it's a sprawling REST API with hundreds of object types and strict syntax. Engineers burn time on docs and curl, mistakes change live infrastructure, and not everyone should hand-write API calls. The opportunity: let people describe what they want, and make the system handle the syntax — safely.">
+    <div class="wrap">
+      <div class="eyebrow reveal">The problem</div>
+      <h2 class="reveal">WAPI is powerful — and unforgiving.</h2>
+      <div class="grid g3">
+        <div class="card reveal"><h3><span class="ico">📚</span>Steep syntax</h3><p>Hundreds of object types, strict fields, _ref handling. Lots of docs and curl just to make one change.</p></div>
+        <div class="card reveal"><h3><span class="ico">⚠️</span>Real blast radius</h3><p>A typo or duplicate can disrupt DNS/DHCP. Changes hit production network infrastructure directly.</p></div>
+        <div class="card reveal"><h3><span class="ico">🔒</span>Access vs. safety</h3><p>You want more people to self-serve — without handing everyone raw API keys to the Grid.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3 -->
+  <section class="slide" data-narration="Here's the core idea. You ask in plain English. IACI grounds the request in real Infoblox documentation, proposes the exact W-A-P-I call, and only runs it after you approve. Questions get answered directly; changes always go through review.">
+    <div class="wrap">
+      <div class="eyebrow reveal">The idea</div>
+      <h2 class="reveal">Describe it. Review it. <span class="grad">Run it.</span></h2>
+      <div class="grid g2" style="margin-top:22px">
+        <div class="chat reveal">
+          <div class="msg me">create an A record web.corp.com → 10.5.5.5</div>
+          <div class="msg bot"><b>Proposed WAPI call</b><div class="mono">{ "operation":"record:a", "method":"POST",
+  "parameters":{ "name":"web.corp.com",
+                 "ipv4addr":"10.5.5.5" } }</div>👉 Approve &amp; Run</div>
+        </div>
+        <div class="reveal" style="align-self:center">
+          <p class="lead" style="margin-top:0">Reads are answered instantly. Writes return a <b>proposal</b> you approve — never a silent change.</p>
+          <div class="pills" style="margin-top:18px">
+            <span class="pill">🧠 Intent recognition</span>
+            <span class="pill">📑 Doc-grounded (RAG)</span>
+            <span class="pill">✅ Approve to execute</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4 -->
+  <section class="slide" data-narration="Architecture matters. IACI keeps one brain — the backend — that handles the language model, the documentation retrieval, and the safe W-A-P-I agent. Around it sit thin adapters: web UIs, an OpenAI-compatible endpoint, and team chatbots. Add a new front-end without touching the core.">
+    <div class="wrap">
+      <div class="eyebrow reveal">Architecture</div>
+      <h2 class="reveal">One brain. Many front doors.</h2>
+      <div class="arch reveal">
+        <div class="row">
+          <div class="node">React UI</div><div class="node">Open WebUI</div><div class="node">LibreChat</div>
+          <div class="node">Slack</div><div class="node">Teams</div><div class="node">WhatsApp</div>
+        </div>
+        <div class="arrow">▼</div>
+        <div class="node core">IACI Backend — agent · RAG · safety · audit</div>
+        <div class="arrow">▼</div>
+        <div class="row">
+          <div class="node">LLM providers</div><div class="node">Infoblox Grid (WAPI)</div><div class="node">Docs index (RAG)</div>
+        </div>
+      </div>
+      <p class="sub reveal" style="margin-top:18px">Adapters are thin translation only — all intelligence &amp; guardrails live once, in the core.</p>
+    </div>
+  </section>
+
+  <!-- 4b: interactive data flow -->
+  <section class="slide" id="flowSlide" data-narration="Here is the data flow when you send a message. The chat UI posts your text to the backend. The A-I Processor grounds it with retrieved documentation and asks your chosen model, through a cache and a circuit breaker. The reply is classified as an answer or a proposed change, and shown to you. Only when you approve does the W-A-P-I client call the Grid, with pre-flight checks and an audit record. Use the Step or Auto buttons to walk through it.">
+    <div class="wrap">
+      <div class="eyebrow reveal">How a message flows</div>
+      <h2 class="reveal">From your message to the answer.</h2>
+      <div class="flowstage reveal">
+        <div class="packet" id="packet"></div>
+        <div class="flow">
+          <div class="lane"><div class="fnode" data-k="you">🧑 You</div></div>
+          <div class="conn">↓</div>
+          <div class="lane"><div class="fnode" data-k="ui">💻 Chat UI</div></div>
+          <div class="conn">↓ <span class="api">POST /api/chat</span></div>
+          <div class="lane">
+            <div class="fnode" data-k="ai">🧠 AIProcessor</div>
+            <div class="branch">
+              <div class="fnode small" data-k="rag">📑 RAG docs</div>
+              <div class="fnode small" data-k="llm">🤖 LLM provider</div>
+            </div>
+          </div>
+          <div class="conn">↓ answer / proposal</div>
+          <div class="lane"><div class="fnode" data-k="review">💻 Review &amp; ▶ Run</div></div>
+          <div class="conn">↓ <span class="api">POST /api/execute</span></div>
+          <div class="lane"><div class="fnode" data-k="wapi">🛡️ WapiClient</div></div>
+          <div class="conn">↓ HTTPS</div>
+          <div class="lane"><div class="fnode" data-k="grid">🗄️ Infoblox Grid</div></div>
+        </div>
+      </div>
+      <div class="flowcap" id="flowcap">Click <b>Step ▶</b> or <b>Auto</b> to follow a message through the system. (Tip: click any box to jump to it.)</div>
+      <div class="flowctl">
+        <button id="fPrev">◀ Back</button>
+        <button id="fStep">Step ▶</button>
+        <button id="fAuto">⏩ Auto</button>
+        <button id="fReset">↻ Replay</button>
+        <span class="step-ind" id="fInd">0 / 9</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5 -->
+  <section class="slide" data-narration="One request can need several coordinated calls. Ask for a network with a D-H-C-P scope and options, and IACI plans the steps in order — create the network with its gateway and D-N-S options, then the range. It even answers cross-object questions, like which networks have no scope, by combining multiple reads.">
+    <div class="wrap">
+      <div class="eyebrow reveal">Multi-step intelligence</div>
+      <h2 class="reveal">It plans, not just replies.</h2>
+      <div class="grid g2">
+        <div class="card reveal"><h3><span class="ico">🧩</span>Coordinated plans</h3>
+          <p>“Create 10.9.0.0/24 with a DHCP pool .100–.200, gateway .1 and DNS 8.8.8.8” →</p>
+          <div class="mono">1. POST network  (+ routers, DNS options)
+2. POST range   (.100 – .200)</div></div>
+        <div class="card reveal"><h3><span class="ico">🔗</span>Reasoned answers</h3>
+          <p>“Which networks have no DHCP scope?” → runs GET network + GET range, then answers:</p>
+          <div class="mono">5 networks · 1 without a scope:
+• 192.168.1.0/24 — no DHCP range</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6 -->
+  <section class="slide" data-narration="Safety is the whole point. Before a change runs, IACI pre-flights it — warning if a network already exists, or if an operation is destructive. Changes need human approval, role-based permissions, and a single-use confirmation so a double-click can't double-execute. Optionally, every write requires a change-ticket reference, and everything is audited.">
+    <div class="wrap">
+      <div class="eyebrow reveal">Guardrails</div>
+      <h2 class="reveal">Built for production change-control.</h2>
+      <div class="grid g3">
+        <div class="card reveal"><h3><span class="ico">🛡️</span>Pre-flight</h3><p><span class="wn">⚠️ already exists</span> · <span class="bd">🛑 destructive delete</span> — shown <i>before</i> you run, with the existing object's details.</p></div>
+        <div class="card reveal"><h3><span class="ico">👥</span>RBAC + approval</h3><p>Reads open; writes need an operator; deletes need an admin. The approver is re-checked — not just the requester.</p></div>
+        <div class="card reveal"><h3><span class="ico">🎫</span>Tickets &amp; audit</h3><p>Optionally require a Jira/ServiceNow ref; single-use approvals (idempotent); every execution logged with who, what, ticket.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7 -->
+  <section class="slide" data-narration="Bring your own model. IACI supports OpenAI, Anthropic Claude, x-A-I Grok, local Ollama, and self-hosted Unsloth. You enter a key in the settings panel, the model list loads live from the provider, and you can switch providers at runtime — even per request.">
+    <div class="wrap">
+      <div class="eyebrow reveal">Model choice</div>
+      <h2 class="reveal">Bring your own <span class="grad">model</span>.</h2>
+      <div class="pills reveal">
+        <span class="pill">🟢 OpenAI</span><span class="pill">🟣 Claude</span><span class="pill">⚫ Grok (xAI)</span>
+        <span class="pill">🦙 Ollama</span><span class="pill">🔶 Unsloth</span>
+      </div>
+      <div class="grid g3" style="margin-top:24px">
+        <div class="card reveal"><h3><span class="ico">🔑</span>Add a key</h3><p>Settings panel with per-provider key, base URL &amp; examples.</p></div>
+        <div class="card reveal"><h3><span class="ico">📡</span>Live model list</h3><p>Models fetched from the provider after you add the key — no hardcoding.</p></div>
+        <div class="card reveal"><h3><span class="ico">🔁</span>Switch anytime</h3><p>Runtime swap; per-request routing keeps it thread-safe.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 8 -->
+  <section class="slide" data-narration="Use it where your team already works. A built-in web UI with no extra installs, drop-in support for Open WebUI and LibreChat through an OpenAI-compatible endpoint, and team chatbots for Slack, Microsoft Teams, and WhatsApp — all from one backend, with the same approval and audit model.">
+    <div class="wrap">
+      <div class="eyebrow reveal">Anywhere</div>
+      <h2 class="reveal">Meet your team where they are.</h2>
+      <div class="grid g3">
+        <div class="card reveal"><h3><span class="ico">💻</span>Web UIs</h3><p>Built-in React app, or Open WebUI / LibreChat via the OpenAI-compatible <span class="mono">/v1</span> API.</p></div>
+        <div class="card reveal"><h3><span class="ico">💬</span>Team chatbots</h3><p>Slack, Teams, WhatsApp — answers + approval buttons, RBAC &amp; audit shared from the core.</p></div>
+        <div class="card reveal"><h3><span class="ico">⚙️</span>One command</h3><p><span class="mono">./setup.sh</span> picks an interface and wires it to the backend.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 9 -->
+  <section class="slide" data-narration="And it's proven against a real grid. IACI created networks with D-H-C-P scopes and options, deleted an object by name using reference chaining, caught a duplicate before it failed, and answered cross-object questions correctly — all validated by an automated test suite.">
+    <div class="wrap">
+      <div class="eyebrow reveal">Proven</div>
+      <h2 class="reveal">Validated on a live Grid.</h2>
+      <div class="grid g3" style="margin-top:8px">
+        <div class="card reveal"><div class="stat"><b class="grad">6-call</b><span>plan executed in order (3 networks + scopes) ✅</span></div></div>
+        <div class="card reveal"><div class="stat"><b class="grad">0→gone</b><span>“delete network …” → GET ref → DELETE, verified</span></div></div>
+        <div class="card reveal"><div class="stat"><b class="grad">117</b><span>automated tests green · live LLM smoke test</span></div></div>
+      </div>
+      <p class="sub reveal" style="margin-top:20px">Duplicate detection, destructive warnings, ref-chaining, multi-provider routing — all exercised end-to-end.</p>
+    </div>
+  </section>
+
+  <!-- 10 -->
+  <section class="slide" data-narration="What's next: live ticket verification against Jira and ServiceNow, four-eyes approval for production changes, richer dashboards, and read-only alerting. The foundation — a safe, model-agnostic, multi-channel agent — is already in place.">
+    <div class="wrap">
+      <div class="eyebrow reveal">Roadmap</div>
+      <h2 class="reveal">From assistant to platform.</h2>
+      <div class="grid g2">
+        <div class="card reveal"><h3><span class="ico">🔌</span>Deeper change-control</h3><p>Live Jira/ServiceNow ticket verification &amp; 4-eyes approval for production and destructive changes.</p></div>
+        <div class="card reveal"><h3><span class="ico">📈</span>Observability</h3><p>Operational dashboards, metrics &amp; alerting; read-only notifications to field teams.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 11 -->
+  <section class="slide" data-narration="That's IACI — natural-language NetOps for Infoblox, with the guardrails to trust it in production. Thank you. Let's talk about putting it to work for your team.">
+    <div class="wrap" style="text-align:center">
+      <div class="eyebrow reveal" style="margin-inline:auto"><span class="dot"></span> Thank you</div>
+      <h1 class="reveal">Natural-language NetOps,<br><span class="grad">production-ready.</span></h1>
+      <p class="lead reveal" style="margin-inline:auto">IACI · Infoblox AI Chat Interface — describe it, review it, run it. Safely.</p>
+      <div class="pills reveal" style="justify-content:center">
+        <span class="pill">🧠 AI agent</span><span class="pill">🛡️ Guardrails</span><span class="pill">🔁 Any model</span><span class="pill">💬 Any channel</span>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<div class="counter" id="counter">01 / 11</div>
+<div class="dots" id="dots"></div>
+<div class="nav">
+  <button class="btn" id="prev" title="Previous (←)">‹</button>
+  <button class="btn" id="full" title="Fullscreen (F)">⛶</button>
+  <button class="btn" id="next" title="Next (→)">›</button>
+</div>
+
+<script>
+(function(){
+  const slides=[...document.querySelectorAll('.slide')];
+  const N=slides.length;
+  let cur=0, tour=false, muted=false;
+  const progress=document.getElementById('progress');
+  const counter=document.getElementById('counter');
+  const dotsWrap=document.getElementById('dots');
+  const dock=document.getElementById('voiceDock');
+  const vPlay=document.getElementById('vPlay'), vTour=document.getElementById('vTour'),
+        vMute=document.getElementById('vMute'), vSel=document.getElementById('vVoice');
+  const synth=window.speechSynthesis;
+  let voices=[], current=null;
+
+  // dots
+  slides.forEach((_,i)=>{const d=document.createElement('div');d.className='d';d.onclick=()=>go(i);dotsWrap.appendChild(d);});
+  const dots=[...dotsWrap.children];
+  const pad=n=>String(n).padStart(2,'0');
+
+  function render(){
+    slides.forEach((s,i)=>s.classList.toggle('active',i===cur));
+    dots.forEach((d,i)=>d.classList.toggle('on',i===cur));
+    progress.style.width=((cur)/(N-1)*100)+'%';
+    counter.textContent=pad(cur+1)+' / '+pad(N);
+  }
+  function go(i,opts={}){
+    cur=Math.max(0,Math.min(N-1,i));
+    render();
+    stop();
+    if(opts.speak!==false && (tour || opts.force)) speak();
+  }
+  const next=()=>{ if(cur<N-1) go(cur+1,{force:tour}); else { tour=false; vTour.classList.remove('on'); } };
+  const prev=()=>go(cur-1,{force:tour});
+
+  // ---- voice ----
+  function pickVoice(){
+    voices=synth.getVoices().filter(v=>/en(-|_)/i.test(v.lang)||/^en$/i.test(v.lang));
+    if(!voices.length) voices=synth.getVoices();
+    vSel.innerHTML='';
+    voices.forEach((v,i)=>{const o=document.createElement('option');o.value=i;o.textContent=v.name.replace(/\s*\(.*\)/,'');vSel.appendChild(o);});
+    // prefer a natural english voice
+    const pref=voices.findIndex(v=>/(Samantha|Aria|Jenny|Google US English|Daniel|Natural)/i.test(v.name));
+    current=voices[pref>-1?pref:0]; if(pref>-1) vSel.value=pref;
+  }
+  if(synth){ pickVoice(); synth.onvoiceschanged=pickVoice; }
+  vSel.onchange=()=>{ current=voices[vSel.value]; if(synth.speaking){ stop(); speak(); } };
+
+  function speak(){
+    if(!synth||muted) { if(tour) setTimeout(next,3500); return; }
+    const text=slides[cur].dataset.narration||'';
+    if(!text) return;
+    const u=new SpeechSynthesisUtterance(text);
+    if(current) u.voice=current;
+    u.rate=1.0; u.pitch=1.0;
+    u.onstart=()=>{ dock.classList.add('speaking'); vPlay.textContent='⏸'; };
+    u.onend=()=>{ dock.classList.remove('speaking'); vPlay.textContent='▶'; if(tour) setTimeout(next,700); };
+    synth.cancel(); synth.speak(u);
+  }
+  function stop(){ if(synth) synth.cancel(); dock.classList.remove('speaking'); vPlay.textContent='▶'; }
+  function togglePlay(){
+    if(!synth) return;
+    if(synth.speaking && !synth.paused){ synth.pause(); dock.classList.remove('speaking'); vPlay.textContent='▶'; }
+    else if(synth.paused){ synth.resume(); dock.classList.add('speaking'); vPlay.textContent='⏸'; }
+    else speak();
+  }
+
+  vPlay.onclick=togglePlay;
+  vMute.onclick=()=>{ muted=!muted; vMute.classList.toggle('on',!muted); vMute.textContent=muted?'🔇':'🔊'; if(muted) stop(); };
+  vTour.onclick=()=>{ tour=!tour; vTour.classList.toggle('on',tour); if(tour){ if(cur===0) render(); speak(); } else stop(); };
+
+  document.getElementById('next').onclick=()=>go(cur+1);
+  document.getElementById('prev').onclick=()=>go(cur-1);
+  document.getElementById('full').onclick=()=>document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen();
+
+  document.addEventListener('keydown',e=>{
+    if(e.key==='ArrowRight'||e.key===' '||e.key==='PageDown'){e.preventDefault();go(cur+1);}
+    else if(e.key==='ArrowLeft'||e.key==='PageUp'){e.preventDefault();go(cur-1);}
+    else if(e.key==='Home')go(0); else if(e.key==='End')go(N-1);
+    else if(e.key.toLowerCase()==='p'){e.preventDefault();togglePlay();}
+    else if(e.key.toLowerCase()==='t')vTour.click();
+    else if(e.key.toLowerCase()==='m')vMute.click();
+    else if(e.key.toLowerCase()==='f')document.getElementById('full').click();
+  });
+  // swipe
+  let sx=0; addEventListener('touchstart',e=>sx=e.touches[0].clientX,{passive:true});
+  addEventListener('touchend',e=>{const dx=e.changedTouches[0].clientX-sx; if(Math.abs(dx)>50)dx<0?go(cur+1):go(cur-1);},{passive:true});
+  addEventListener('beforeunload',stop);
+
+  render();
+})();
+
+// ---- interactive data-flow diagram ----
+(function(){
+  const slide=document.getElementById('flowSlide'); if(!slide) return;
+  const stage=slide.querySelector('.flowstage');
+  const packet=document.getElementById('packet');
+  const cap=document.getElementById('flowcap');
+  const ind=document.getElementById('fInd');
+  const autoBtn=document.getElementById('fAuto');
+  const nodes={}; slide.querySelectorAll('.fnode').forEach(n=>nodes[n.dataset.k]=n);
+  const PROMPT='Click <b>Step ▶</b> or <b>Auto</b> to follow a message through the system. (Tip: click any box to jump to it.)';
+  const steps=[
+    {k:'you',    t:'You type a request in the chat UI.'},
+    {k:'ui',     t:'The UI sends <b>{ message, session_id }</b> to the backend at <b>/api/chat</b>.'},
+    {k:'ai',     t:'<b>AIProcessor</b> loads your session context and orchestrates the pipeline.'},
+    {k:'rag',    t:'<b>RAG</b> retrieves relevant Infoblox documentation to ground the request — with citations.'},
+    {k:'llm',    t:'<b>LLMClient</b> calls your chosen model — fronted by a response cache and a circuit breaker.'},
+    {k:'ai',     t:'The reply is parsed &amp; classified: a plain <b>answer</b>, or a proposed <b>WAPI call / plan</b>.'},
+    {k:'review', t:'The UI shows the answer — or a proposal with a <b>▶ Run</b> button. Nothing has touched the Grid yet.'},
+    {k:'wapi',   t:'You approve → <b>/api/execute</b> → <b>WapiClient</b> validates &amp; calls the Grid (pre-flight warnings, ref-chaining, fail-fast).'},
+    {k:'grid',   t:'The <b>Infoblox Grid</b> runs it and returns results — ✅/❌ back to you, with an audit record.'},
+  ];
+  let i=-1, timer=null;
+
+  function place(k){
+    const el=nodes[k]; if(!el) return;
+    const s=stage.getBoundingClientRect(), r=el.getBoundingClientRect();
+    packet.style.left=(r.left-s.left+r.width/2)+'px';
+    packet.style.top=(r.top-s.top+r.height/2)+'px';
+    packet.classList.add('on');
+  }
+  function show(n){
+    i=Math.max(0,Math.min(steps.length-1,n));
+    Object.values(nodes).forEach(el=>el.classList.remove('hot'));
+    const st=steps[i]; nodes[st.k].classList.add('hot'); place(st.k);
+    cap.innerHTML=st.t; ind.textContent=(i+1)+' / '+steps.length;
+  }
+  function stopAuto(){ if(timer){clearInterval(timer);timer=null;} autoBtn.classList.remove('on'); }
+  function step(){ if(i<steps.length-1) show(i+1); else stopAuto(); }
+  function reset(){ stopAuto(); i=-1; Object.values(nodes).forEach(el=>el.classList.remove('hot'));
+    packet.classList.remove('on'); cap.innerHTML=PROMPT; ind.textContent='0 / '+steps.length; }
+  function auto(){
+    if(timer){stopAuto();return;}
+    autoBtn.classList.add('on');
+    (i>=steps.length-1)?show(0):step();
+    timer=setInterval(()=>{ if(i>=steps.length-1){stopAuto();return;} step(); },2400);
+  }
+
+  document.getElementById('fStep').onclick=()=>{stopAuto();step();};
+  document.getElementById('fPrev').onclick=()=>{stopAuto();show(i-1);};
+  document.getElementById('fReset').onclick=reset;
+  autoBtn.onclick=auto;
+  stage.addEventListener('click',e=>{
+    const node=e.target.closest('.fnode'); if(!node) return;
+    const idx=steps.findIndex(s=>s.k===node.dataset.k);
+    if(idx>=0){ stopAuto(); show(idx); }
+  });
+  addEventListener('resize',()=>{ if(i>=0) place(steps[i].k); });
+  // Reset whenever we navigate onto / away from this slide.
+  new MutationObserver(()=>{ slide.classList.contains('active')?reset():stopAuto(); })
+    .observe(slide,{attributes:true,attributeFilter:['class']});
+  reset();
+})();
+</script>
+</body>
+</html>

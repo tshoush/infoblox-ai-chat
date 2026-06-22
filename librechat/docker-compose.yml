@@ -1,0 +1,29 @@
+# Minimal LibreChat stack wired to the IACI OpenAI-compatible backend.
+#   cd librechat && docker compose up -d
+# Then open http://localhost:3002 and register a local account.
+services:
+  mongodb:
+    image: mongo:7
+    container_name: iaci-librechat-mongo
+    restart: unless-stopped
+    volumes:
+      - librechat_mongo:/data/db
+    command: mongod --quiet
+
+  api:
+    image: ghcr.io/danny-avila/librechat:latest
+    container_name: iaci-librechat
+    restart: unless-stopped
+    depends_on:
+      - mongodb
+    ports:
+      - "${LIBRECHAT_PORT:-3002}:3080"
+    env_file:
+      - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./librechat.yaml:/app/librechat.yaml:ro
+
+volumes:
+  librechat_mongo:

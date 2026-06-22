@@ -1,63 +1,42 @@
 version: '3.8'
 
 services:
-  redis:
-    image: redis:7-alpine
-    container_name: iaci-redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    command: redis-server --appendonly yes
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 3
-
   backend:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: iaci-backend
     ports:
-      - "5002:5002"
+      - "5000:5000"
+    env_file:
+      - .env
     environment:
       - REDIS_URL=redis://redis:6379/0
-      - FLASK_ENV=development
-      - FLASK_DEBUG=1
-      - INFOBLOX_GRID_IP=${INFOBLOX_GRID_IP:-192.168.1.1}
-      - INFOBLOX_ADMIN_USER=${INFOBLOX_ADMIN_USER:-admin}
-      - INFOBLOX_ADMIN_PASS=${INFOBLOX_ADMIN_PASS:-infoblox}
-      - LLM_PROVIDER=${LLM_PROVIDER:-openai}
-      - LLM_API_KEY=${LLM_API_KEY}
-      - LLM_BASE_URL=${LLM_BASE_URL}
     volumes:
-      - .:/app
-      - /app/node_modules
+      - ./backend:/app/backend
+      - ./rag_docs:/app/rag_docs
     depends_on:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5002/health"]
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:5000/api/health').status==200 else 1)"]
       interval: 30s
-      timeout: 10s
+      timeout: 5s
       retries: 3
+      start_period: 10s
 
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile.dev
-    container_name: iaci-frontend
+  redis:
+    image: "redis:alpine"
     ports:
-      - "3000:3000"
-    environment:
-      - REACT_APP_API_URL=http://localhost:5002
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    depends_on:
-      - backend
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
 
-volumes:
-  redis_data:
+  # Mock service for testing WAPI interactions in isolation
+  mock-infoblox:
+    build:
+      context: ./mock_services/infoblox
+    ports:
+      - "8080:80"

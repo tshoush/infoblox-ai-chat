@@ -1,0 +1,913 @@
+title: Infoblox WAPI Reference
+wapi_version: 2.12.3
+overview: The Infoblox WAPI is a RESTful API over HTTPS. Each object type (e.g. 'network',
+  'record:a', 'record:host') is queried at /wapi/<version>/<object>. Use GET to search/list,
+  POST to create, PUT (against an object _ref) to modify, and DELETE (against a _ref)
+  to remove. The 'supports' field on each attribute uses r=read, w=write(create),
+  u=update, s=search.
+supported_object_types:
+- ad_auth_service
+- admingroup
+- adminrole
+- adminuser
+- allendpoints
+- allnsgroup
+- allrecords
+- allrpzrecords
+- approvalworkflow
+- authpolicy
+- awsrte53taskgroup
+- awsuser
+- bfdtemplate
+- bulkhost
+- bulkhostnametemplate
+- cacertificate
+- capacityreport
+- captiveportal
+- certificate:authservice
+- ciscoise:endpoint
+- csvimporttask
+- datacollectioncluster
+- db_objects
+- dbsnapshot
+- ddns:principalcluster
+- ddns:principalcluster:group
+- deleted_objects
+- dhcp:statistics
+- dhcpfailover
+- dhcpoptiondefinition
+- dhcpoptionspace
+- discovery
+- discovery:credentialgroup
+- discovery:device
+- discovery:devicecomponent
+- discovery:deviceinterface
+- discovery:deviceneighbor
+- discovery:devicesupportbundle
+- discovery:diagnostictask
+- discovery:gridproperties
+- discovery:memberproperties
+- discovery:sdnnetwork
+- discovery:status
+- discovery:vrf
+- discoverytask
+- distributionschedule
+- dns64group
+- dtc
+- dtc:allrecords
+- dtc:certificate
+- dtc:lbdn
+- dtc:monitor
+- dtc:monitor:http
+- dtc:monitor:icmp
+- dtc:monitor:pdp
+- dtc:monitor:sip
+- dtc:monitor:snmp
+- dtc:monitor:tcp
+- dtc:object
+- dtc:pool
+- dtc:record:a
+- dtc:record:aaaa
+- dtc:record:cname
+- dtc:record:naptr
+- dtc:record:srv
+- dtc:server
+- dtc:topology
+- dtc:topology:label
+- dtc:topology:rule
+- dxl:endpoint
+- extensibleattributedef
+- fileop
+- filterfingerprint
+- filtermac
+- filternac
+- filteroption
+- filterrelayagent
+- fingerprint
+- fixedaddress
+- fixedaddresstemplate
+- ftpuser
+- gmcgroup
+- gmcschedule
+- grid
+- grid:cloudapi
+- grid:cloudapi:cloudstatistics
+- grid:cloudapi:tenant
+- grid:cloudapi:vm
+- grid:cloudapi:vmaddress
+- grid:dashboard
+- grid:dhcpproperties
+- grid:dns
+- grid:filedistribution
+- grid:license_pool
+- grid:license_pool_container
+- grid:maxminddbinfo
+- grid:member:cloudapi
+- grid:servicerestart:group
+- grid:servicerestart:group:order
+- grid:servicerestart:request
+- grid:servicerestart:request:changedobject
+- grid:servicerestart:status
+- grid:threatanalytics
+- grid:threatprotection
+- grid:x509certificate
+- hostnamerewritepolicy
+- hsm:allgroups
+- hsm:entrustnshieldgroup
+- hsm:thaleslunagroup
+- ipam:statistics
+- ipv4address
+- ipv6address
+- ipv6dhcpoptiondefinition
+- ipv6dhcpoptionspace
+- ipv6filteroption
+- ipv6fixedaddress
+- ipv6fixedaddresstemplate
+- ipv6network
+- ipv6networkcontainer
+- ipv6networktemplate
+- ipv6range
+- ipv6rangetemplate
+- ipv6sharednetwork
+- kerberoskey
+- ldap_auth_service
+- lease
+- license:gridwide
+- localuser:authservice
+- macfilteraddress
+- mastergrid
+- member
+- member:dhcpproperties
+- member:dns
+- member:filedistribution
+- member:license
+- member:parentalcontrol
+- member:threatanalytics
+- member:threatprotection
+- memberclouddnssync
+- memberdfp
+- msserver
+- msserver:adsites:domain
+- msserver:adsites:site
+- msserver:dhcp
+- msserver:dns
+- mssuperscope
+- namedacl
+- natgroup
+- network
+- network_discovery
+- networkcontainer
+- networktemplate
+- networkuser
+- networkview
+- notification:rest:endpoint
+- notification:rest:template
+- notification:rule
+- nsgroup
+- nsgroup:delegation
+- nsgroup:forwardingmember
+- nsgroup:forwardstubserver
+- nsgroup:stubmember
+- orderedranges
+- orderedresponsepolicyzones
+- outbound:cloudclient
+- parentalcontrol:avp
+- parentalcontrol:blockingpolicy
+- parentalcontrol:subscriber
+- parentalcontrol:subscriberrecord
+- parentalcontrol:subscribersite
+- permission
+- pxgrid:endpoint
+- radius:authservice
+- range
+- rangetemplate
+- record:a
+- record:aaaa
+- record:alias
+- record:caa
+- record:cname
+- record:dhcid
+- record:dname
+- record:dnskey
+- record:ds
+- record:dtclbdn
+- record:host
+- record:host_ipv4addr
+- record:host_ipv6addr
+- record:mx
+- record:naptr
+- record:ns
+- record:nsec
+- record:nsec3
+- record:nsec3param
+- record:ptr
+- record:rpz:a
+- record:rpz:a:ipaddress
+- record:rpz:aaaa
+- record:rpz:aaaa:ipaddress
+- record:rpz:cname
+- record:rpz:cname:clientipaddress
+- record:rpz:cname:clientipaddressdn
+- record:rpz:cname:ipaddress
+- record:rpz:cname:ipaddressdn
+- record:rpz:mx
+- record:rpz:naptr
+- record:rpz:ptr
+- record:rpz:srv
+- record:rpz:txt
+- record:rrsig
+- record:srv
+- record:tlsa
+- record:txt
+- record:unknown
+- recordnamepolicy
+- request
+- restartservicestatus
+- rir
+- rir:organization
+- roaminghost
+- ruleset
+- saml:authservice
+- scavengingtask
+- scheduledtask
+- search
+- sharednetwork
+- sharedrecord:a
+- sharedrecord:aaaa
+- sharedrecord:cname
+- sharedrecord:mx
+- sharedrecord:srv
+- sharedrecord:txt
+- sharedrecordgroup
+- smartfolder:children
+- smartfolder:global
+- smartfolder:personal
+- snmpuser
+- superhost
+- superhostchild
+- syslog:endpoint
+- tacacsplus:authservice
+- taxii
+- tftpfiledir
+- threatanalytics:analytics_whitelist
+- threatanalytics:moduleset
+- threatanalytics:whitelist
+- threatinsight:cloudclient
+- threatprotection:grid:rule
+- threatprotection:profile
+- threatprotection:profile:rule
+- threatprotection:rule
+- threatprotection:rulecategory
+- threatprotection:ruleset
+- threatprotection:ruletemplate
+- threatprotection:statistics
+- upgradegroup
+- upgradeschedule
+- upgradestatus
+- userprofile
+- vdiscoverytask
+- view
+- vlan
+- vlanrange
+- vlanview
+- zone_auth
+- zone_auth_discrepancy
+- zone_delegated
+- zone_forward
+- zone_rp
+- zone_stub
+object_reference:
+  network:
+    description: An IPv4 network (subnet) managed by Infoblox IPAM/DHCP.
+    fields:
+    - name: authority
+      type:
+      - bool
+      supports: rwu
+      searchable_by: null
+    - name: auto_create_reversezone
+      type:
+      - bool
+      supports: w
+      searchable_by: null
+    - name: bootfile
+      type:
+      - string
+      supports: rwu
+      searchable_by: null
+    - name: bootserver
+      type:
+      - string
+      supports: rwu
+      searchable_by: null
+    - name: cloud_info
+      type:
+      - grid:cloudapi:info
+      supports: rwu
+      searchable_by: null
+    - name: comment
+      type:
+      - string
+      supports: rwus
+      searchable_by: :=~
+    - name: conflict_count
+      type:
+      - uint
+      supports: r
+      searchable_by: null
+    - name: ddns_domainname
+      type:
+      - string
+      supports: rwu
+      searchable_by: null
+    - name: ddns_generate_hostname
+      type:
+      - bool
+      supports: rwu
+      searchable_by: null
+    - name: ddns_server_always_updates
+      type:
+      - bool
+      supports: rwu
+      searchable_by: null
+    - name: ddns_ttl
+      type:
+      - uint
+      supports: rwu
+      searchable_by: null
+    - name: ddns_update_fixed_addresses
+      type:
+      - bool
+      supports: rwu
+      searchable_by: null
+    - name: ddns_use_option81
+      type:
+      - bool
+      supports: rwu
+      searchable_by: null
+    - name: delete_reason
+      type:
+      - string
+      supports: wu
+      searchable_by: null
+    - name: deny_bootp
+      type:
+      - bool
+      supports: rwu
+      searchable_by: null
+    - name: dhcp_utilization
+      type:
+      - uint
+      supports: r
+      searchable_by: null
+    - name: dhcp_utilization_status
+      type:
+      - enum
+      supports: r
+      searchable_by: null
+    - name: disable
+      type:
+      - bool
+      supports: rwu
+      searchable_by: null
+    - name: discover_now_status
+      type:
+      - enum
+      supports: r
+      searchable_by: null
+    - name: discovered_bgp_as
+      type:
+      - string
+      supports: rs
+      searchable_by: :=~
+    - name: discovered_bridge_domain
+      type:
+      - string
+      supports: rwus
+      searchable_by: :=~
+    - name: discovered_tenant
+      type:
+      - string
+      supports: rwus
+      searchable_by: :=~
+    - name: discovered_vlan_id
+      type:
+      - string
+      supports: rs
+      searchable_by: :=~
+    - name: discovered_vlan_name
+      type:
+      - string
+      supports: rs
+      searchable_by: :=~
+    - name: discovered_vrf_description
+      type:
+      - string
+      supports: rs
+      searchable_by: :=~
+    - name: discovered_vrf_name
+      type:
+      - string
+      supports: rs
+      searchable_by: :=~
+    - name: discovered_vrf_rd
+      type:
+      - string
+      supports: rs
+      searchable_by: :=~
+    - name: discovery_basic_poll_settings
+      type:
+      - discovery:basicpollsettings
+      supports: rwu
+      searchable_by: null
+    - name: discovery_blackout_setting
+      type:
+      - properties:blackoutsetting
+      supports: rwu
+      searchable_by: null
+    - name: discovery_engine_type
+      type:
+      - enum
+      supports: rs
+      searchable_by: '='
+    - name: discovery_member
+      type:
+      - string
+      supports: rwu
+      searchable_by: null
+    - name: dynamic_hosts
+      type:
+      - uint
+      supports: r
+      searchable_by: null
+    - name: email_list
+      type:
+      - string
+      supports: rwu
+      searchable_by: null
+    - name: enable_ddns
+      type:
+      - bool
+      supports: rwu
+      searchable_by: null
+    - name: enable_dhcp_thresholds
+      type:
+      - bool
+      supports: rwu
+      searchable_by: null
+    - name: enable_discovery
+      type:
+      - bool
+      supports: rwu
+      searchable_by: null
+    - name: enable_email_warnings
+      type:
+      - bool
+      supports: rwu
+      searchable_by: null
+    - name: enable_ifmap_publishing
+      type:
+      - bool
+      supports: rwu
+      searchable_by: null
+    - name: enable_immediate_discovery
+      type:
+      - bool
+      supports: wu
+      searchable_by: null
+    - name: enable_pxe_lease_time
+      type:
+      - bool
+      supports: rwu
+      searchable_by: null
+    - name: enable_snmp_warnings
+      type:
+      - bool
+      supports: rwu
+      searchable_by: null
+    - name: endpoint_sources
+      type:
+      - ciscoise:endpoint
+      - pxgrid:endpoint
+      supports: r
+      searchable_by: null
+    - name: extattrs
+      type:
+      - extattr
+      supports: rwu
+      searchable_by: null
+    - name: high_water_mark
+      type:
+      - uint
+      supports: rwu
+      searchable_by: null
+    - name: high_water_mark_reset
+      type:
+      - uint
+      supports: rwu
+      searchable_by: null
+    - name: ignore_dhcp_option_list_request
+      type:
+      - bool
+      supports: rwu
+      searchable_by: null
+    - name: ignore_id
+      type:
+      - enum
+      supports: rwu
+      searchable_by: null
+    - name: ignore_mac_addresses
+      type:
+      - string
+      supports: rwu
+      searchable_by: null
+    - name: ipam_email_addresses
+      type:
+      - string
+      supports: rwu
+      searchable_by: null
+    - name: ipam_threshold_settings
+      type:
+      - setting:ipam:threshold
+      supports: rwu
+      searchable_by: null
+    - name: ipam_trap_settings
+      type:
+      - setting:ipam:trap
+      supports: rwu
+      searchable_by: null
+    - name: ipv4addr
+      type:
+      - string
+      supports: rwus
+      searchable_by: =~
+    - name: last_rir_registration_update_sent
+      type:
+      - timestamp
+      supports: r
+      searchable_by: null
+    - name: last_rir_registration_update_status
+      type:
+      - string
+      supports: r
+      searchable_by: null
+    - name: lease_scavenge_time
+      type:
+      - int
+      supports: rwu
+      searchable_by: null
+    - name: logic_filter_rules
+      type:
+      - logicfilterrule
+      supports: rwu
+      searchable_by: null
+    - name: low_water_mark
+      type:
+      - uint
+      supports: rwu
+      searchable_by: null
+    - name: low_water_mark_reset
+      type:
+      - uint
+      supports: rwu
+      searchable_by: null
+    - name: members
+      type:
+      - msdhcpserver
+      - dhcpmember
+      supports: rwu
+      searchable_by: null
+    - name: mgm_private
+      type:
+      - bool
+      supports: rwu
+      searchable_by: null
+    - name: mgm_private_overridable
+      type:
+      - bool
+      supports: r
+      searchable_by: null
+    - name: ms_ad_user_data
+      type:
+      - msserver:aduser:data
+      supports: r
+      searchable_by: null
+    - name: netmask
+      type:
+      - uint
+      supports: rwu
+      searchable_by: null
+    - name: network
+      type:
+      - string
+      supports: rwus
+      searchable_by: =~
+    - name: network_container
+      type:
+      - string
+      supports: sr
+      searchable_by: '='
+    - name: network_view
+      type:
+      - string
+      supports: rws
+      searchable_by: '='
+    - name: nextserver
+      type:
+      - string
+      supports: rwu
+      searchable_by: null
+    - name: options
+      type:
+      - dhcpoption
+      supports: rwu
+      searchable_by: null
+    - name: port_control_blackout_setting
+      type:
+      - properties:blackoutsetting
+      supports: rwu
+      searchable_by: null
+    - name: pxe_lease_time
+      type:
+      - uint
+      supports: rwu
+      searchable_by: null
+    - name: recycle_leases
+      type:
+      - bool
+      supports: rwu
+      searchable_by: null
+    - name: restart_if_needed
+      type:
+      - bool
+      supports: wu
+      searchable_by: null
+    - name: rir
+      type:
+      - enum
+      supports: rs
+      searchable_by: '='
+    - name: rir_organization
+      type:
+      - string
+      supports: rwus
+      searchable_by: '='
+    - name: rir_registration_action
+      type:
+      - enum
+      supports: wu
+      searchable_by: null
+    - name: rir_registration_status
+      type:
+      - enum
+      supports: rwu
+      searchable_by: null
+    - name: same_port_control_discovery_blackout
+      type:
+      - bool
+      supports: rwu
+      searchable_by: null
+    - name: send_rir_request
+      type:
+      - bool
+      supports: wu
+      searchable_by: null
+    - name: static_hosts
+      type:
+      - uint
+      supports: r
+      searchable_by: null
+    - name: subscribe_settings
+      type:
+      - ciscoise:subscribesetting
+      supports: rwu
+      searchable_by: null
+    - name: template
+      type:
+      - string
+      supports: w
+      searchable_by: null
+    - name: total_hosts
+      type:
+      - uint
+      supports: r
+      searchable_by: null
+    - name: unmanaged
+      type:
+      - bool
+      supports: rwus
+      searchable_by: '='
+    - name: unmanaged_count
+      type:
+      - uint
+      supports: r
+      searchable_by: null
+    - name: update_dns_on_lease_renewal
+      type:
+      - bool
+      supports: rwu
+      searchable_by: null
+    - name: use_authority
+      type:
+      - bool
+      supports: rwu
+      searchable_by: null
+    - name: use_blackout_setting
+      type:
+      - bool
+      supports: rwu
+      searchable_by: null
+    - name: use_bootfile
+      type:
+      - bool
+      supports: rwu
+      searchable_by: null
+    - name: use_bootserver
+      type:
+      - bool
+      supports: rwu
+      searchable_by: null
+    - name: use_ddns_domainname
+      type:
+      - bool
+      supports: rwu
+      searchable_by: null
+    - name: use_ddns_generate_hostname
+      type:
+      - bool
+      supports: rwu
+      searchable_by: null
+    - name: use_ddns_ttl
+      type:
+      - bool
+      supports: rwu
+      searchable_by: null
+    - name: use_ddns_update_fixed_addresses
+      type:
+      - bool
+      supports: rwu
+      searchable_by: null
+    - name: use_ddns_use_option81
+      type:
+      - bool
+      supports: rwu
+      searchable_by: null
+    - name: use_deny_bootp
+      type:
+      - bool
+      supports: rwu
+      searchable_by: null
+    - name: use_discovery_basic_polling_settings
+      type:
+      - bool
+      supports: rwu
+      searchable_by: null
+    - name: use_email_list
+      type:
+      - bool
+      supports: rwu
+      searchable_by: null
+    - name: use_enable_ddns
+      type:
+      - bool
+      supports: rwu
+      searchable_by: null
+    - name: use_enable_dhcp_thresholds
+      type:
+      - bool
+      supports: rwu
+      searchable_by: null
+    - name: use_enable_discovery
+      type:
+      - bool
+      supports: rwu
+      searchable_by: null
+    - name: use_enable_ifmap_publishing
+      type:
+      - bool
+      supports: rwu
+      searchable_by: null
+    - name: use_ignore_dhcp_option_list_request
+      type:
+      - bool
+      supports: rwu
+      searchable_by: null
+    - name: use_ignore_id
+      type:
+      - bool
+      supports: rwu
+      searchable_by: null
+    - name: use_ipam_email_addresses
+      type:
+      - bool
+      supports: rwu
+      searchable_by: null
+    - name: use_ipam_threshold_settings
+      type:
+      - bool
+      supports: rwu
+      searchable_by: null
+    - name: use_ipam_trap_settings
+      type:
+      - bool
+      supports: rwu
+      searchable_by: null
+    - name: use_lease_scavenge_time
+      type:
+      - bool
+      supports: rwu
+      searchable_by: null
+    - name: use_logic_filter_rules
+      type:
+      - bool
+      supports: rwu
+      searchable_by: null
+    - name: use_mgm_private
+      type:
+      - bool
+      supports: rwu
+      searchable_by: null
+    - name: use_nextserver
+      type:
+      - bool
+      supports: rwu
+      searchable_by: null
+    - name: use_options
+      type:
+      - bool
+      supports: rwu
+      searchable_by: null
+    - name: use_pxe_lease_time
+      type:
+      - bool
+      supports: rwu
+      searchable_by: null
+    - name: use_recycle_leases
+      type:
+      - bool
+      supports: rwu
+      searchable_by: null
+    - name: use_subscribe_settings
+      type:
+      - bool
+      supports: rwu
+      searchable_by: null
+    - name: use_update_dns_on_lease_renewal
+      type:
+      - bool
+      supports: rwu
+      searchable_by: null
+    - name: use_zone_associations
+      type:
+      - bool
+      supports: rwu
+      searchable_by: null
+    - name: utilization
+      type:
+      - uint
+      supports: r
+      searchable_by: null
+    - name: utilization_update
+      type:
+      - timestamp
+      supports: r
+      searchable_by: null
+    - name: vlans
+      type:
+      - vlanlink
+      supports: rwu
+      searchable_by: null
+    - name: zone_associations
+      type:
+      - zoneassociation
+      supports: rwu
+      searchable_by: null
+  record:a:
+    description: A DNS A record mapping a hostname to an IPv4 address.
+    common_fields:
+    - name
+    - ipv4addr
+    - view
+    - ttl
+    - comment
+  record:host:
+    description: A host record combining DNS and IPAM/DHCP for one or more addresses.
+    common_fields:
+    - name
+    - ipv4addrs
+    - configure_for_dns
+    - view
+  range:
+    description: A DHCP range (pool of addresses) within a network.
+    common_fields:
+    - start_addr
+    - end_addr
+    - network
+    - member
+  fixedaddress:
+    description: A DHCP fixed address reservation bound to a MAC address.
+    common_fields:
+    - ipv4addr
+    - mac
+    - network
+    - name

@@ -1,501 +1,185 @@
-"""
-LLM client with multi-provider support and circuit breaker protection.
-Handles communication with various LLM providers with fallback strategies.
-"""
-
 import json
-import logging
-import time
-from typing import Dict, List, Any, Optional, Union
-from dataclasses import dataclass
-from abc import ABC, abstractmethod
-import requests
+from typing import Any, Dict, List, Optional
 
-from config import config_manager
-from circuit_breaker import call_llm_with_breaker, CircuitBreakerError
-from cache import llm_cache
+from openai import OpenAI
+import anthropic
 
-logger = logging.getLogger(__name__)
-
-
-@dataclass
-class LLMRequest:
-    """Represents an LLM request."""
-    prompt: str
-    context: Optional[Dict[str, Any]] = None
-    temperature: float = 0.7
-    max_tokens: int = 4000
-    system_message: Optional[str] = None
-
-
-@dataclass
-class LLMResponse:
-    """Represents an LLM response."""
-    content: str
-    provider: str
-    model: Optional[str] = None
-    usage: Optional[Dict[str, Any]] = None
-    confidence: float = 1.0
-    cached: bool = False
-    response_time: float = 0.0
-
-
-class LLMProvider(ABC):
-    """Abstract base class for LLM providers."""
-    
-    @abstractmethod
-    def send_request(self, request: LLMRequest) -> LLMResponse:
-        """Send request to LLM provider."""
-        pass
-    
-    @abstractmethod
-    def is_available(self) -> bool:
-        """Check if provider is available."""
-        pass
-
-
-class OpenAIProvider(LLMProvider):
-    """OpenAI API provider."""
-    
-    def __init__(self, api_key: str, base_url: Optional[str] = None, model: str = "gpt-3.5-turbo"):
-        self.api_key = api_key
-        self.base_url = base_url or "https://api.openai.com/v1"
-        self.model = model
-        self.session = requests.Session()
-        self.session.headers.update({
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json"
-        })
-    
-    def send_request(self, request: LLMRequest) -> LLMResponse:
-        """Send request to OpenAI API."""
-        start_time = time.time()
-        
-        messages = []
-        if request.system_message:
-            messages.append({"role": "system", "content": request.system_message})
-        
-        messages.append({"role": "user", "content": request.prompt})
-        
-        payload = {
-            "model": self.model,
-            "messages": messages,
-            "temperature": request.temperature,
-            "max_tokens": request.max_tokens
-        }
-        
-        response = self.session.post(
-            f"{self.base_url}/chat/completions",
-            json=payload,
-            timeout=30
-        )
-        response.raise_for_status()
-        
-        data = response.json()
-        response_time = time.time() - start_time
-        
-        return LLMResponse(
-            content=data["choices"][0]["message"]["content"],
-            provider="openai",
-            model=self.model,
-            usage=data.get("usage"),
-            response_time=response_time
-        )
-    
-    def is_available(self) -> bool:
-        """Check if OpenAI API is available."""
-        try:
-            response = self.session.get(f"{self.base_url}/models", timeout=5)
-            return response.status_code == 200
-        except Exception:
-            return False
-
-
-class ClaudeProvider(LLMProvider):
-    """Anthropic Claude API provider."""
-    
-    def __init__(self, api_key: str, model: str = "claude-3-sonnet-20240229"):
-        self.api_key = api_key
-        self.model = model
-        self.base_url = "https://api.anthropic.com/v1"
-        self.session = requests.Session()
-        self.session.headers.update({
-            "x-api-key": api_key,
-            "Content-Type": "application/json",
-            "anthropic-version": "2023-06-01"
-        })
-    
-    def send_request(self, request: LLMRequest) -> LLMResponse:
-        """Send request to Claude API."""
-        start_time = time.time()
-        
-        payload = {
-            "model": self.model,
-            "max_tokens": request.max_tokens,
-            "temperature": request.temperature,
-            "messages": [
-                {"role": "user", "content": request.prompt}
-            ]
-        }
-        
-        if request.system_message:
-            payload["system"] = request.system_message
-        
-        response = self.session.post(
-            f"{self.base_url}/messages",
-            json=payload,
-            timeout=30
-        )
-        response.raise_for_status()
-        
-        data = response.json()
-        response_time = time.time() - start_time
-        
-        return LLMResponse(
-            content=data["content"][0]["text"],
-            provider="claude",
-            model=self.model,
-            usage=data.get("usage"),
-            response_time=response_time
-        )
-    
-    def is_available(self) -> bool:
-        """Check if Claude API is available."""
-        try:
-            # Claude doesn't have a simple health check, so we'll assume it's available if we have an API key
-            return bool(self.api_key)
-        except Exception:
-            return False
-
-
-class LocalProvider(LLMProvider):
-    """Local LLM provider (e.g., Ollama, local OpenAI-compatible API)."""
-    
-    def __init__(self, base_url: str, model: str = "llama2"):
-        self.base_url = base_url.rstrip('/')
-        self.model = model
-        self.session = requests.Session()
-        self.session.headers.update({
-            "Content-Type": "application/json"
-        })
-    
-    def send_request(self, request: LLMRequest) -> LLMResponse:
-        """Send request to local LLM API."""
-        start_time = time.time()
-        
-        # Try OpenAI-compatible format first
-        try:
-            messages = []
-            if request.system_message:
-                messages.append({"role": "system", "content": request.system_message})
-            messages.append({"role": "user", "content": request.prompt})
-            
-            payload = {
-                "model": self.model,
-                "messages": messages,
-                "temperature": request.temperature,
-                "max_tokens": request.max_tokens
-            }
-            
-            response = self.session.post(
-                f"{self.base_url}/v1/chat/completions",
-                json=payload,
-                timeout=60  # Local models might be slower
-            )
-            
-            if response.status_code == 200:
-                data = response.json()
-                response_time = time.time() - start_time
-                
-                return LLMResponse(
-                    content=data["choices"][0]["message"]["content"],
-                    provider="local",
-                    model=self.model,
-                    usage=data.get("usage"),
-                    response_time=response_time
-                )
-        except Exception as e:
-            logger.warning(f"OpenAI-compatible format failed: {e}")
-        
-        # Try Ollama format
-        try:
-            payload = {
-                "model": self.model,
-                "prompt": request.prompt,
-                "temperature": request.temperature,
-                "options": {
-                    "num_predict": request.max_tokens
-                }
-            }
-            
-            response = self.session.post(
-                f"{self.base_url}/api/generate",
-                json=payload,
-                timeout=60
-            )
-            response.raise_for_status()
-            
-            data = response.json()
-            response_time = time.time() - start_time
-            
-            return LLMResponse(
-                content=data["response"],
-                provider="local",
-                model=self.model,
-                response_time=response_time
-            )
-            
-        except Exception as e:
-            logger.error(f"Local LLM request failed: {e}")
-            raise
-    
-    def is_available(self) -> bool:
-        """Check if local LLM is available."""
-        try:
-            # Try to get model list
-            response = self.session.get(f"{self.base_url}/api/tags", timeout=5)
-            return response.status_code == 200
-        except Exception:
-            try:
-                # Try OpenAI-compatible health check
-                response = self.session.get(f"{self.base_url}/v1/models", timeout=5)
-                return response.status_code == 200
-            except Exception:
-                return False
-
+from backend.config import LLMConfig
+from backend.circuit_breaker import CircuitBreaker
+from backend.cache import CacheManager
+from backend import providers as provider_registry
 
 class LLMClient:
-    """Main LLM client with multi-provider support and fallback."""
-    
-    def __init__(self):
-        self.config = config_manager.get_llm_config()
-        self.providers: Dict[str, LLMProvider] = {}
-        self.primary_provider = None
-        self.fallback_providers: List[LLMProvider] = []
-        
-        self._initialize_providers()
-    
-    def _initialize_providers(self):
-        """Initialize LLM providers based on configuration."""
-        provider_name = self.config.provider.lower()
-        
-        try:
-            if provider_name == "openai":
-                self.primary_provider = OpenAIProvider(
-                    api_key=self.config.api_key,
-                    base_url=self.config.base_url,
-                    model=self.config.model or "gpt-3.5-turbo"
-                )
-                self.providers["openai"] = self.primary_provider
-                
-            elif provider_name == "claude":
-                self.primary_provider = ClaudeProvider(
-                    api_key=self.config.api_key,
-                    model=self.config.model or "claude-3-sonnet-20240229"
-                )
-                self.providers["claude"] = self.primary_provider
-                
-            elif provider_name in ["local", "ollama", "llama"]:
-                if not self.config.base_url:
-                    raise ValueError("Base URL required for local LLM provider")
-                
-                self.primary_provider = LocalProvider(
-                    base_url=self.config.base_url,
-                    model=self.config.model or "llama2"
-                )
-                self.providers["local"] = self.primary_provider
-                
-            else:
-                raise ValueError(f"Unsupported LLM provider: {provider_name}")
-            
-            logger.info(f"Initialized primary LLM provider: {provider_name}")
-            
-            # Initialize fallback providers if enabled
-            if self.config.fallback_enabled:
-                self._initialize_fallback_providers()
-                
-        except Exception as e:
-            logger.error(f"Failed to initialize LLM provider {provider_name}: {e}")
-            raise
-    
-    def _initialize_fallback_providers(self):
-        """Initialize fallback providers."""
-        # For now, we'll use a simple keyword-based fallback
-        # In a production system, you might want multiple LLM providers
-        logger.info("Fallback processing enabled for LLM failures")
-    
-    def send_request(self, request: LLMRequest) -> LLMResponse:
-        """Send request with caching and circuit breaker protection."""
-        # Check cache first
-        cached_response = llm_cache.get_cached_response(request.prompt, request.context)
-        if cached_response:
-            return LLMResponse(
-                content=cached_response['response']['content'],
-                provider=cached_response['response']['provider'],
-                model=cached_response['response'].get('model'),
-                cached=True,
-                response_time=0.0
-            )
-        
-        # Try primary provider with circuit breaker
-        try:
-            response = call_llm_with_breaker(self._send_to_provider, self.primary_provider, request)
-            
-            # Cache successful response
-            llm_cache.cache_response(
-                request.prompt,
-                {
-                    'content': response.content,
-                    'provider': response.provider,
-                    'model': response.model,
-                    'confidence': response.confidence
-                },
-                request.context
-            )
-            
-            return response
-            
-        except CircuitBreakerError as e:
-            logger.warning(f"Circuit breaker open for LLM: {e}")
-            if self.config.fallback_enabled:
-                return self._fallback_processing(request)
-            raise
-            
-        except Exception as e:
-            logger.error(f"LLM request failed: {e}")
-            if self.config.fallback_enabled:
-                return self._fallback_processing(request)
-            raise
-    
-    def _send_to_provider(self, provider: LLMProvider, request: LLMRequest) -> LLMResponse:
-        """Send request to specific provider."""
-        if not provider.is_available():
-            raise Exception(f"Provider {provider.__class__.__name__} is not available")
-        
-        return provider.send_request(request)
-    
-    def _fallback_processing(self, request: LLMRequest) -> LLMResponse:
-        """Fallback processing when LLM is unavailable."""
-        logger.info("Using fallback processing for LLM request")
-        
-        # Simple keyword-based intent recognition
-        prompt_lower = request.prompt.lower()
-        
-        if any(word in prompt_lower for word in ['show', 'list', 'get', 'find', 'search']):
-            intent = "search"
-        elif any(word in prompt_lower for word in ['create', 'add', 'new']):
-            intent = "create"
-        elif any(word in prompt_lower for word in ['update', 'modify', 'change']):
-            intent = "update"
-        elif any(word in prompt_lower for word in ['delete', 'remove']):
-            intent = "delete"
+    """Talks to any registered LLM provider.
+
+    OpenAI-compatible providers (openai, grok, ollama, unsloth) share the OpenAI
+    SDK with a provider-specific ``base_url``; Anthropic/Claude uses its own SDK.
+    The active provider can be swapped at runtime via :meth:`reconfigure`.
+    """
+
+    def __init__(self, config: LLMConfig, cache_manager: CacheManager, circuit_breaker: CircuitBreaker):
+        self.config = config
+        self.cache_manager = cache_manager
+        self.circuit_breaker = circuit_breaker
+        self.openai_client = None
+        self.anthropic_client = None
+        self.mode = "openai"
+        self._build_clients()
+
+    def _build_clients(self) -> None:
+        """(Re)creates the underlying SDK client for the current provider."""
+        entry = provider_registry.get(self.config.provider)
+        if entry is None:
+            raise ValueError(f"Unsupported LLM provider: {self.config.provider}")
+        self.mode = entry["mode"]
+        self.openai_client = None
+        self.anthropic_client = None
+        if self.mode == "anthropic":
+            self.anthropic_client = anthropic.Anthropic(
+                api_key=self.config.api_key, timeout=self.config.timeout)
         else:
-            intent = "unknown"
-        
-        fallback_response = (
-            f"I'm currently operating in fallback mode due to LLM service unavailability. "
-            f"Based on your request, I detected a '{intent}' intent. "
-            f"Please try again later for full AI processing, or use specific WAPI commands."
-        )
-        
-        return LLMResponse(
-            content=fallback_response,
-            provider="fallback",
-            confidence=0.3,
-            response_time=0.1
-        )
-    
-    def format_prompt_for_wapi(self, user_query: str, context: Dict[str, Any] = None) -> str:
-        """Format prompt for WAPI operation generation."""
-        system_context = """You are an expert Infoblox NIOS administrator. Your job is to translate natural language queries into specific WAPI operations.
+            self.openai_client = OpenAI(
+                api_key=self.config.api_key or "not-needed",
+                base_url=self.config.base_url or entry["base_url"],
+                timeout=self.config.timeout,
+            )
 
-Available WAPI objects include:
-- record:a (A records)
-- record:aaaa (AAAA records) 
-- record:cname (CNAME records)
-- record:mx (MX records)
-- record:ptr (PTR records)
-- network (Network objects)
-- range (DHCP ranges)
-- host (Host records)
-- zone_auth (Authoritative zones)
-- zone_forward (Forward zones)
+    def reconfigure(self, provider: str, api_key: Optional[str] = None,
+                    base_url: Optional[str] = None, model: Optional[str] = None) -> None:
+        """Switch the active provider/credentials/model at runtime."""
+        self.config.provider = provider
+        self.config.api_key = api_key
+        self.config.base_url = base_url
+        self.config.model = model
+        self._build_clients()
 
-For each query, provide:
-1. The intent (search, create, update, delete)
-2. The WAPI object type
-3. Required parameters
-4. Optional parameters
-5. Confidence level (0.0-1.0)
+    def _default_model(self) -> Optional[str]:
+        entry = provider_registry.get(self.config.provider)
+        return entry["default_model"] if entry else None
 
-Respond in JSON format with this structure:
-{
-  "intent": "search|create|update|delete",
-  "object_type": "wapi_object_name",
-  "parameters": {"key": "value"},
-  "confidence": 0.95,
-  "explanation": "Brief explanation of the operation"
-}"""
-        
-        prompt = f"""User Query: {user_query}
+    def send_request(self, prompt: str, context: Optional[str] = None,
+                     use_cache: bool = True) -> Dict[str, Any]:
+        """Sends a request to the configured LLM provider."""
+        if use_cache:
+            cached_response = self.get_cached_response(prompt)
+            if cached_response:
+                return cached_response
 
-Context: {json.dumps(context) if context else 'None'}
-
-Please analyze this query and provide the appropriate WAPI operation."""
-        
-        return system_context + "\n\n" + prompt
-    
-    def parse_wapi_response(self, response: str) -> Dict[str, Any]:
-        """Parse LLM response for WAPI operations."""
         try:
-            # Try to extract JSON from response
-            import re
-            json_match = re.search(r'\{.*\}', response, re.DOTALL)
-            if json_match:
-                return json.loads(json_match.group())
-            else:
-                # Fallback parsing
-                return {
-                    "intent": "unknown",
-                    "object_type": "unknown",
-                    "parameters": {},
-                    "confidence": 0.1,
-                    "explanation": "Could not parse LLM response"
-                }
+            handler = self._claude_chat_completion if self.mode == "anthropic" else self._openai_chat_completion
+            response = self.circuit_breaker.call(handler, prompt=prompt, context=context)
+            parsed_response = self.parse_response(response)
+            if use_cache:
+                self.cache_response(prompt, parsed_response)
+            return parsed_response
         except Exception as e:
-            logger.error(f"Failed to parse LLM response: {e}")
-            return {
-                "intent": "error",
-                "object_type": "unknown", 
-                "parameters": {},
-                "confidence": 0.0,
-                "explanation": f"Parse error: {e}"
-            }
-    
-    def get_provider_status(self) -> Dict[str, Any]:
-        """Get status of all providers."""
-        status = {
-            "primary_provider": self.primary_provider.__class__.__name__ if self.primary_provider else None,
-            "fallback_enabled": self.config.fallback_enabled,
-            "providers": {}
+            self.handle_provider_failure(e)
+            return {"error": str(e)}
+
+    def _claude_chat_completion(self, prompt: str, context: Optional[str] = None) -> Any:
+        kwargs = {
+            "model": self.config.model or self._default_model() or "claude-opus-4-8",
+            "max_tokens": self.config.max_tokens,
+            "messages": [{"role": "user", "content": prompt}],
         }
-        
-        for name, provider in self.providers.items():
-            try:
-                available = provider.is_available()
-                status["providers"][name] = {
-                    "available": available,
-                    "type": provider.__class__.__name__
-                }
-            except Exception as e:
-                status["providers"][name] = {
-                    "available": False,
-                    "error": str(e),
-                    "type": provider.__class__.__name__
-                }
-        
-        return status
+        if context:
+            kwargs["system"] = context
+        # NOTE: newer Claude models (opus-4.x) reject `temperature` entirely, so
+        # it is intentionally omitted here. OpenAI-mode paths still honor it.
 
+        return self.anthropic_client.messages.create(**kwargs)
 
-# Global LLM client instance
-llm_client = LLMClient()
+    def _openai_chat_completion(self, prompt: str, context: Optional[str] = None) -> Any:
+        """Shared path for all OpenAI-compatible providers (openai, grok,
+        ollama, unsloth) — only the client's base_url/key differ."""
+        messages = []
+        if context:
+            messages.append({"role": "system", "content": context})
+        messages.append({"role": "user", "content": prompt})
+
+        return self.openai_client.chat.completions.create(
+            model=self.config.model or self._default_model() or "gpt-4o",
+            messages=messages,
+            temperature=self.config.temperature,
+            max_tokens=self.config.max_tokens,
+        )
+
+    def format_prompt(self, query: str, context: Optional[str] = None, tools_schema: Optional[Dict] = None) -> str:
+        """Creates an optimized prompt for WAPI operations.
+
+        When a tools schema is supplied, instruct the model to emit a strict JSON
+        object describing the WAPI call. The shape must match what
+        ``AIProcessor`` and ``WapiClient`` expect:
+          - ``operation``: the WAPI object *type* (e.g. "network", "record:a"),
+            NOT a sentence.
+          - ``method``: one of GET, POST, PUT, DELETE.
+          - ``parameters``: query params (GET) or the object body (POST/PUT).
+          - ``ref`` (optional): the object _ref, required for PUT/DELETE.
+        """
+        prompt_parts = []
+        if context and context.strip():
+            prompt_parts.append(f"Context:\n{context.strip()}\n")
+        prompt_parts.append(f"User request: {query}")
+
+        if tools_schema:
+            prompt_parts.append(
+                "\nAvailable WAPI objects and fields:\n" + json.dumps(tools_schema, indent=2)
+            )
+            prompt_parts.append(
+                "\nRespond with ONLY JSON (no prose, no markdown fences).\n"
+                "A single WAPI call is an object of this exact shape:\n"
+                '{"operation": "<wapi_object_type>", "method": "GET|POST|PUT|DELETE", '
+                '"parameters": { }, "ref": "<optional object _ref for PUT/DELETE>"}\n'
+                'Rules: "operation" MUST be a WAPI object type such as "network" or "record:a" '
+                '(never a sentence). Use GET to search/list, POST to create, PUT to modify, '
+                "DELETE to remove. Put search filters or new field values in \"parameters\".\n"
+                'Example — "list all networks" -> '
+                '{"operation": "network", "method": "GET", "parameters": {}}\n'
+                "\nIf the request needs SEVERAL ordered calls, return "
+                '{"operations": [call1, call2, ...]} where each element has the shape above and '
+                "the calls are listed in execution order (earlier objects may be prerequisites of later ones).\n"
+                "DHCP guidance: a network is the `network` object; a DHCP scope/pool is a `range` object "
+                "(fields start_addr, end_addr, network); DHCP options go in an `options` array on the "
+                'network or range, each like {"name":"routers","num":3,"value":"10.0.0.1"}, '
+                '{"name":"domain-name-servers","num":6,"value":"8.8.8.8"}, '
+                '{"name":"domain-name","num":15,"value":"example.com"}.\n'
+                'Example — "create network 10.9.0.0/24 with a DHCP pool .100-.200, gateway .1 and DNS 8.8.8.8" ->\n'
+                '{"operations": ['
+                '{"operation": "network", "method": "POST", "parameters": {"network": "10.9.0.0/24", '
+                '"options": [{"name": "routers", "num": 3, "value": "10.9.0.1"}, '
+                '{"name": "domain-name-servers", "num": 6, "value": "8.8.8.8"}]}}, '
+                '{"operation": "range", "method": "POST", "parameters": {"network": "10.9.0.0/24", '
+                '"start_addr": "10.9.0.100", "end_addr": "10.9.0.200"}}]}\n'
+                "If the request is not a WAPI operation, reply in plain natural language instead."
+            )
+        return "\n".join(prompt_parts)
+
+    def parse_response(self, response: Any) -> Dict[str, Any]:
+        """Extracts structured data from LLM responses."""
+        if self.mode == "anthropic":
+            return {"content": response.content[0].text}
+        # OpenAI-compatible (openai, grok, ollama, unsloth)
+        return {"content": response.choices[0].message.content}
+
+    def handle_provider_failure(self, error: Exception) -> None:
+        """Implements fallback and retry logic for provider failures."""
+        print(f"LLM provider failure: {error}")
+        if self.config.fallback_enabled:
+            # Implement more sophisticated fallback (e.g., switch to another provider)
+            pass
+
+    def _cache_key(self, prompt: str) -> str:
+        # Hash the (potentially multi-KB) prompt + provider/model so the Redis key
+        # stays small and is scoped to the model that produced the answer.
+        import hashlib
+        h = hashlib.sha256(f"{self.config.provider}|{self.config.model}|{prompt}".encode()).hexdigest()
+        return f"llm_cache:{h}"
+
+    def cache_response(self, prompt: str, response: Dict[str, Any]) -> None:
+        """Caches successful responses."""
+        # CacheManager.set falls back to its configured llm_cache_ttl when ttl is None.
+        self.cache_manager.set(self._cache_key(prompt), response)
+
+    def get_cached_response(self, prompt: str) -> Optional[Dict[str, Any]]:
+        """Retrieves cached responses."""
+        return self.cache_manager.get(self._cache_key(prompt))
